@@ -1341,7 +1341,7 @@ pre code {
 }
 .links-of-author a::before,
 .links-of-author span.exturl::before {
-  background: #f405ff;
+  background: #d0b90a;
   border-radius: 50%;
   content: ' ';
   display: inline-block;
@@ -1720,6 +1720,9 @@ pre code {
   line-height: 1;
   margin: -20px auto 15px;
   text-align: center;
+}
+.post-body p {
+  text-indent: 2em;
 }
 .post-sticky-flag {
   display: inline-block;
