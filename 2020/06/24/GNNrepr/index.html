@@ -22,7 +22,7 @@
 
   <meta name="description" content="机器学习的第一件事是需要将训练所用的未处理的数据（raw data）转化为具有一定格式的数据（structured data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如">
 <meta property="og:type" content="article">
-<meta property="og:title" content="GNN（一）：图的表示学习">
+<meta property="og:title" content="GNN（一）：图的表征学习">
 <meta property="og:url" content="http://yoursite.com/2020/06/24/GNNrepr/index.html">
 <meta property="og:site_name" content="学习飞翔的企鹅">
 <meta property="og:description" content="机器学习的第一件事是需要将训练所用的未处理的数据（raw data）转化为具有一定格式的数据（structured data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如">
@@ -30,7 +30,7 @@
 <meta property="og:image" content="http://yoursite.com/2020/06/24/GNNrepr/three_types_of_point.png">
 <meta property="og:image" content="http://yoursite.com/2020/06/24/GNNrepr/probability.png">
 <meta property="article:published_time" content="2020-06-24T08:51:45.212Z">
-<meta property="article:modified_time" content="2020-06-24T11:30:50.328Z">
+<meta property="article:modified_time" content="2020-06-24T12:44:21.107Z">
 <meta property="article:author" content="kxz18">
 <meta property="article:tag" content="GNN">
 <meta name="twitter:card" content="summary">
@@ -49,7 +49,7 @@
   };
 </script>
 
-  <title>GNN（一）：图的表示学习 | 学习飞翔的企鹅</title>
+  <title>GNN（一）：图的表征学习 | 学习飞翔的企鹅</title>
   
 
 
@@ -240,10 +240,6 @@
       </div>
   </nav>
 </div>
-  <div class="sidebar-button motion-element"><i class="fa fa-comment"></i>
-    Chat
-  </a>
-  </div>
   <div class="links-of-author motion-element">
       <span class="links-of-author-item">
         <a href="https://github.com/kxz18" title="GitHub → https://github.com/kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
@@ -296,7 +292,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          GNN（一）：图的表示学习
+          GNN（一）：图的表征学习
         </h1>
 
         <div class="post-meta">
@@ -307,7 +303,7 @@
               <span class="post-meta-item-text">Posted on</span>
               
 
-              <time title="Created: 2020-06-24 16:51:45 / Modified: 19:30:50" itemprop="dateCreated datePublished" datetime="2020-06-24T16:51:45+08:00">2020-06-24</time>
+              <time title="Created: 2020-06-24 16:51:45 / Modified: 20:44:21" itemprop="dateCreated datePublished" datetime="2020-06-24T16:51:45+08:00">2020-06-24</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
