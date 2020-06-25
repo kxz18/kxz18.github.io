@@ -30,7 +30,7 @@
 <meta property="og:image" content="http://yoursite.com/2020/06/25/GNN/graph.png">
 <meta property="og:image" content="http://yoursite.com/2020/06/25/GNN/layers.png">
 <meta property="article:published_time" content="2020-06-25T15:25:57.166Z">
-<meta property="article:modified_time" content="2020-06-25T15:32:34.540Z">
+<meta property="article:modified_time" content="2020-06-25T15:34:56.951Z">
 <meta property="article:author" content="kxz18">
 <meta property="article:tag" content="GNN">
 <meta name="twitter:card" content="summary">
@@ -303,7 +303,7 @@
               <span class="post-meta-item-text">Posted on</span>
               
 
-              <time title="Created: 2020-06-25 23:25:57 / Modified: 23:32:34" itemprop="dateCreated datePublished" datetime="2020-06-25T23:25:57+08:00">2020-06-25</time>
+              <time title="Created: 2020-06-25 23:25:57 / Modified: 23:34:56" itemprop="dateCreated datePublished" datetime="2020-06-25T23:25:57+08:00">2020-06-25</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -364,7 +364,7 @@
 <h2 id="三、图注意力网络（Graph-Attention-Networks，GAT）"><a href="#三、图注意力网络（Graph-Attention-Networks，GAT）" class="headerlink" title="三、图注意力网络（Graph Attention Networks，GAT）"></a>三、图注意力网络（Graph Attention Networks，GAT）</h2><p>为图神经网络添加注意力机制的想法来源于递归的式子：<br>$$<br>h_v^k = ReLU(\mathbf{W_k}\sum_{u\in N(v)} \frac{h_u^{k-1}}{|N(v)|}+\mathbf{B_k}h_v^{k-1}),\forall k \in \{1,…,K\}<br>$$<br>这个式子中的 $\frac{1}{|N(v)|}$ 表示的是所有的邻接点都有一样的重要性，即取平均作为局部网络的表示，而实际上可能并不是所有邻接点的贡献都是一样的。例如预测我是怎么样的一个人，可能要考虑我的朋友都是怎么样的人，但我的朋友中有些人和我比较亲密，有些人则比较疏远，那么和我比较亲密的人可能有更大的参考价值。而在我的社交网络图上，则可能用边的权重来表示和我的亲密程度。因此可能对不同的邻接点，需要有不同的系数，而不是统一为$\frac{1}{|N(v)|}$。</p>
 <p>具体而言，以 $e_{vu}$ 表示节点 $u$ 对编码节点 $v$ 的贡献（一个标量），则有：<br>$$<br>e_{vu} = attention(\mathbf{W_k}h_u^{k-1}, \mathbf{W_k}h_v^{k-1})<br>$$<br>之后再对 $e_{vu}$ 进行归一化处理，得到节点 $u$ 的注意力系数 $\alpha_{vu}$：<br>$$<br>\alpha_{vu} = \frac{\exp(e_{vu})}{\sum_{k\in N(v)}\exp (e_{vk})}<br>$$<br>而对于注意力函数 $attention$ 的选取，则是可以进行研究的部分。最简单的可以是过一个全连接层得到结果，当然也可以同时考虑邻居以及边的权重。也可以参考 Transformer 中的多头注意力模型，用多组平行的注意力头进行计算，将最后得到的向量拼接作为结果。</p>
 <h2 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h2><p>[1] <a href="http://web.stanford.edu/class/cs224w/slides/08-GNN.pdf" target="_blank" rel="noopener">Stanford CS224W: Machine Learning with Graphs，Lecture 8 - Graph Neural Networks</a></p>
-<p>[2] <a href="">Semi-Supervised Classification with Graph Convolutional Networks (ICLR 2017, Thomas)</a></p>
+<p>[2] <a href="https://arxiv.org/abs/1609.02907" target="_blank" rel="noopener">Semi-Supervised Classification with Graph Convolutional Networks (ICLR 2017, Thomas)</a></p>
 
     </div>
 
