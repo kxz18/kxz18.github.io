@@ -48,7 +48,7 @@
 <meta property="og:image" content="http://kxz18.github.io/2020/09/09/Minecraft/serversetting.png">
 <meta property="og:image" content="http://kxz18.github.io/2020/09/09/Minecraft/user.png">
 <meta property="article:published_time" content="2020-09-09T15:37:04.307Z">
-<meta property="article:modified_time" content="2020-09-13T01:51:04.439Z">
+<meta property="article:modified_time" content="2020-09-13T05:32:54.125Z">
 <meta property="article:author" content="kxz18">
 <meta property="article:tag" content="Minecraft">
 <meta name="twitter:card" content="summary">
@@ -327,7 +327,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2020-09-13 09:51:04" itemprop="dateModified" datetime="2020-09-13T09:51:04+08:00">2020-09-13</time>
+                <time title="Modified: 2020-09-13 13:32:54" itemprop="dateModified" datetime="2020-09-13T13:32:54+08:00">2020-09-13</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -432,6 +432,7 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">+-- world</span><br><span class="line">|	+-- DIM-1</span><br><span class="line">| 	+--	DIM1</span><br><span class="line">|	+-- ...（其他文件）</span><br></pre></td></tr></table></figure>
 
 <p>除此之外还需要注意的是 paper 服务器默认关闭铁轨复制的特性，如果要打开需要编辑 <strong>paper.yml</strong>，将里面的 <strong>allow-piston-duplication</strong> 设置为 <strong>true</strong>。在复制铁轨的时候你可能会觉得铁轨掉到地上就消失了，其实并没有，只是因为 paper 服务器默认开启了同类物品近距离合并，所以单个的铁轨都被合并到一个物品堆里了，看起来就像消失了一样。</p>
+<p>关于paper的其他参数的优化可以看<a href="https://ent.163.com/game/16/0129/14/BEGKSO4500314UFD.html" target="_blank" rel="noopener">这篇文章</a>，里面有比较详细的介绍。</p>
 <h5 id="选择二：使用-fabric-搭建服务端加入优化-MOD"><a href="#选择二：使用-fabric-搭建服务端加入优化-MOD" class="headerlink" title="选择二：使用 fabric 搭建服务端加入优化 MOD"></a>选择二：使用 fabric 搭建服务端加入优化 MOD</h5><p>准确来说fabric并不算第三方服务端，只是一个能为server加入 mod 的集成工具链。fabric 搭建服务端可以加入 mod，而有很多 mod 是专门为了优化游戏性能而存在的。</p>
 <p>首先需要去 fabric 官网下载 fabric 安装器。官网有给 mc server 建立方法，详情在 <a href="https://fabricmc.net/use/?page=server" target="_blank" rel="noopener">https://fabricmc.net/use/?page=server</a>。在写这篇文章的时候，fabric 最新版本是 0.6.1.51，所以下载的方法为：</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wget -O fabric-installer-0.6.1.51.jar https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar <span class="comment"># wget 下载</span></span><br></pre></td></tr></table></figure>
