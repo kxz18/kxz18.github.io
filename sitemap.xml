@@ -60,14 +60,14 @@
 
   
   <url>
-    <loc>http://yoursite.com/tags/Minecraft/</loc>
+    <loc>http://yoursite.com/tags/GNN/</loc>
     <lastmod>2020-09-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://yoursite.com/tags/GNN/</loc>
+    <loc>http://yoursite.com/tags/Minecraft/</loc>
     <lastmod>2020-09-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
@@ -76,14 +76,14 @@
 
   
   <url>
-    <loc>http://yoursite.com/categories/%E6%B8%B8%E6%88%8F/</loc>
+    <loc>http://yoursite.com/categories/%E5%AD%A6%E4%B9%A0/</loc>
     <lastmod>2020-09-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://yoursite.com/categories/%E5%AD%A6%E4%B9%A0/</loc>
+    <loc>http://yoursite.com/categories/%E6%B8%B8%E6%88%8F/</loc>
     <lastmod>2020-09-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
