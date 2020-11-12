@@ -22,28 +22,36 @@
     var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
   </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="学习飞翔的企鹅">
-<meta property="og:url" content="http://kxz18.github.io/index.html">
+  <meta name="description" content="一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 electronic-wechat，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 下使用 Wine 安装 windows 版的微信">
+<meta property="og:url" content="http://kxz18.github.io/2020/11/12/Wechat/index.html">
 <meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 electronic-wechat，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是">
 <meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://kxz18.github.io/2020/11/12/Wechat/winecfg.png">
+<meta property="og:image" content="http://kxz18.github.io/2020/11/12/Wechat/resolution.png">
+<meta property="article:published_time" content="2020-11-12T10:08:57.692Z">
+<meta property="article:modified_time" content="2020-11-12T10:18:13.976Z">
 <meta property="article:author" content="kxz18">
+<meta property="article:tag" content="Wine">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://kxz18.github.io/2020/11/12/Wechat/winecfg.png">
 
-<link rel="canonical" href="http://kxz18.github.io/">
+<link rel="canonical" href="http://kxz18.github.io/2020/11/12/Wechat/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome : true,
-    isPost : false,
+    isHome : false,
+    isPost : true,
     lang   : 'en'
   };
 </script>
 
-  <title>学习飞翔的企鹅</title>
+  <title>Linux 下使用 Wine 安装 windows 版的微信 | 学习飞翔的企鹅</title>
   
 
 
@@ -200,6 +208,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一、Wine-简介"><span class="nav-text">一、Wine 简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二、安装步骤"><span class="nav-text">二、安装步骤</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-安装-Wine"><span class="nav-text">1. 安装 Wine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-安装-winetricks"><span class="nav-text">2. 安装 winetricks</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-创建-wine-bottle"><span class="nav-text">3. 创建 wine bottle</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-安装微信"><span class="nav-text">4. 安装微信</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三、参考资料"><span class="nav-text">三、参考资料</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -265,9 +274,10 @@
       <div class="main-inner">
         
 
-        <div class="content index posts-expand">
+        <div class="content post posts-expand">
           
-      
+
+    
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
@@ -283,10 +293,9 @@
       <meta itemprop="name" content="学习飞翔的企鹅">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/11/12/Wechat/" class="post-title-link" itemprop="url">Linux 下使用 Wine 安装 windows 版的微信</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          Linux 下使用 Wine 安装 windows 版的微信
+        </h1>
 
         <div class="post-meta">
             <span class="post-meta-item">
@@ -333,309 +342,85 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 <code>electronic-wechat</code>，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是就想能不能用 Wine 装一个 windows 下的微信客户端解决问题。
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020/11/12/Wechat/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
+        <p>一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 <code>electronic-wechat</code>，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是就想能不能用 Wine 装一个 windows 下的微信客户端解决问题。<a id="more"></a></p>
+<h2 id="一、Wine-简介"><a href="#一、Wine-简介" class="headerlink" title="一、Wine 简介"></a>一、Wine 简介</h2><blockquote>
+<p><strong>Wine</strong>是在<a href="https://zh.wikipedia.org/wiki/X86" target="_blank" rel="noopener">x86</a>、<a href="https://zh.wikipedia.org/wiki/X86-64" target="_blank" rel="noopener">x86-64</a>容许<a href="https://zh.wikipedia.org/wiki/类Unix系统" target="_blank" rel="noopener">类Unix操作系统</a>在<a href="https://zh.wikipedia.org/wiki/X_Window_System" target="_blank" rel="noopener">X Window System</a>运行<a href="https://zh.wikipedia.org/wiki/Microsoft_Windows" target="_blank" rel="noopener">Microsoft Windows</a>程序的软件。另外，Wine也提供<a href="https://zh.wikipedia.org/wiki/程式庫" target="_blank" rel="noopener">程序运行库</a>（Winelib）来帮助计算机程序设计师将Windows程序移植到类Unix系统；也有不少软件经过Wine测试后发布，比如<a href="https://zh.wikipedia.org/wiki/Picasa" target="_blank" rel="noopener">Picasa</a>、<a href="https://zh.wikipedia.org/wiki/UTorrent" target="_blank" rel="noopener">uTorrent</a>、<a href="https://zh.wikipedia.org/wiki/MediaCoder" target="_blank" rel="noopener">MediaCoder</a>。</p>
+<p>Wine通过提供一个<a href="https://zh.wikipedia.org/wiki/兼容层" target="_blank" rel="noopener">兼容层</a>来将Windows的系统调用转换成与POSIX标准的系统调用。它还提供了Windows系统运行库的替代品和一些系统组件的替代品。为了避免著作权问题，Wine主要使用黑箱测试逆向工程来编写。</p>
+<p>Wine最早是“<strong>Win</strong>dows <strong>E</strong>mulator”，即Windows模拟器的缩写，但Wine现在为“<strong>W</strong>ine <strong>I</strong>s <strong>N</strong>ot an <strong>E</strong>mulator”的<a href="https://zh.wikipedia.org/wiki/遞迴縮寫" target="_blank" rel="noopener">递归缩写</a>，即Wine不是模拟器。Wine的正确名称是“Wine”，而不是全大写或全小写。</p>
+</blockquote>
+<p>以上是 wiki 对 Wine 的简介。主要就是通过一个兼容层改变 windows 的系统调用，从而能在使用 POSIX 标准的系统（如Linux）上运行 windows 的软件。如果不是很懂的话把它看作是一个轻量的虚拟机也行（虽然两者完全不同）。</p>
+<h2 id="二、安装步骤"><a href="#二、安装步骤" class="headerlink" title="二、安装步骤"></a>二、安装步骤</h2><h3 id="1-安装-Wine"><a href="#1-安装-Wine" class="headerlink" title="1. 安装 Wine"></a>1. 安装 Wine</h3><p>Wine 在大部分 Linux 发行版的软件库中都有，直接用包管理器进行安装即可。例如在 ubuntu 下使用 apt：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install wine</span><br></pre></td></tr></table></figure>
+
+<p>Wine 除了基础版本以外，还有 deepin 系统基于 Wine 开发的 deepin-wine，主要用于 deepin 系统，一般只用基础版的 Wine 就行了。</p>
+<p>安装完 Wine 后会附带 <code>winecfg</code> 程序，这是用来调整要模拟的 windows 版本、选择增加的 dll 库、画面分辨率等设置的。</p>
+<h3 id="2-安装-winetricks"><a href="#2-安装-winetricks" class="headerlink" title="2. 安装 winetricks"></a>2. 安装 winetricks</h3><p>winetricks 是一个辅助脚本，用于在 wine 中下载并安装各种闭源的组件和运行库。因为 windows 版的微信运行需要 riched20.dll 和 riched32.dll 两个动态库的支持，因此需要用到 winetricks。</p>
+<p>使用包管理器安装的 winetricks 可能版本过老，导致安装的依赖不对，因此最好直接去 github 上下载。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wget https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks</span><br></pre></td></tr></table></figure>
+
+<p>然后给权限并移动到<code>/usr/local/bin/</code>（系统路径之一）下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">chmod +x winetricks					<span class="comment"># 给执行权限</span></span><br><span class="line">sudo mv winetricks /usr/<span class="built_in">local</span>/bin	<span class="comment"># 移动到系统路径</span></span><br></pre></td></tr></table></figure>
+
+<p>除此之外， winetricks 有一个依赖项是 <code>cabextract</code>，需要手动安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install cabextract</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-创建-wine-bottle"><a href="#3-创建-wine-bottle" class="headerlink" title="3. 创建 wine bottle"></a>3. 创建 wine bottle</h3><p>如果直接用默认参数运行 Wine、winetricks 的话，装的所有东西都会装到系统盘里，不同的软件要用的 dll 可能不一样，最后会杂糅在一起，而且它塞一堆 dll 进系统盘我们肯定不愿意，但如果手动创建 wine bottle 则可以把这些环境分开，就像 python 中的 <code>virtualenv</code> 一样。创建的方式很简单，只需要指定这些软件打开的路径即可。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /path/to/target		<span class="comment"># 切到用来装 Wine 环境的路径</span></span><br><span class="line">mkdir Wine				<span class="comment"># 不同程序的依赖将装在 Wine 文件夹的各个子目录下</span></span><br><span class="line"><span class="built_in">cd</span> Wine					<span class="comment"># 进入 Wine 文件夹</span></span><br><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat winecfg  <span class="comment"># 初始化 Wine/Wechat 目录</span></span><br></pre></td></tr></table></figure>
+
+<p>初次进入 winecfg 时可能会跳出很多错误提示，让你下载一些依赖，可以直接跳过，等以后要用了再下载。跳过之后进入 winecfg 的界面，很有可能字、界面非常小，这是因为自己在 Linux 系统中设置了屏幕放缩，在<strong>Graphics-&gt;Screen Resolution</strong> 一栏中可以调整 dpi，从而调大字。</p>
+<p><img src="winecfg.png" alt="winecfg" style="zoom:50%;" /><img src="resolution.png" alt="resolution" style="zoom:50%;" /></p>
+<p>至此一个基础的环境已经配置好了，如果要运行一些 windows 程序时只需要用以下指令即可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat wine ***.exe</span><br></pre></td></tr></table></figure>
+
+<p>当然，复杂一点的 windows 程序需要的 dll 不一样，所以只用基础环境可能并不能运行。对于微信而言，还需要riched20.dll 和 riched32.dll 两个动态库，使用 winetricks 进行安装。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat winetricks</span><br></pre></td></tr></table></figure>
+
+<p>选择 <strong>Select the default wineprefix -&gt; Install a Windows DLL or  component</strong>，然后勾选上riched20.dll 和 riched32.dll 两个动态库，按确定，等待下载即可。注意这里如果一直下载失败的话可能会需要科学上网，命令行代理可以使用<code>proxychains</code>。下载完成之后退出 winetricks 即可。</p>
+<p>到此为止一个适合微信的环境已经建立完成，接下来只需要安装微信即可。</p>
+<h3 id="4-安装微信"><a href="#4-安装微信" class="headerlink" title="4. 安装微信"></a>4. 安装微信</h3><p>首先从<a href="https://pc.weixin.qq.com/" target="_blank" rel="noopener">微信官网</a>下载微信安装器，然后用 Wine 运行安装器 WechatSetup.exe：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat wine WechatSetup.exe</span><br></pre></td></tr></table></figure>
+
+<p>接下来按照在 Windows 上的安装操作一样即可。安装完后即可使用。一般来说会自动在桌面产生快捷方式，如果桌面没有可以在开始菜单中搜索微信。    </p>
+<h2 id="三、参考资料"><a href="#三、参考资料" class="headerlink" title="三、参考资料"></a>三、参考资料</h2><ol>
+<li><a href="https://www.cnblogs.com/makefile/p/wine-life.html" target="_blank" rel="noopener">Linux下的wine生活(QQ/微信/Office)</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/76331687" target="_blank" rel="noopener">Linux下通过Wine安装微信</a></li>
+<li><a href="https://zh.wikipedia.org/zh-cn/Wine" target="_blank" rel="noopener">Wine 维基百科</a></li>
+</ol>
+
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+          <div class="post-tags">
+              <a href="/tags/Wine/" rel="tag"># Wine</a>
+          </div>
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://kxz18.github.io/2020/09/09/Minecraft/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.jpg">
-      <meta itemprop="name" content="kxz18">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="学习飞翔的企鹅">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/09/09/Minecraft/" class="post-title-link" itemprop="url">Minecraft Java版服务器搭建（Linux）与客户端连接</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2020-09-09 23:37:04" itemprop="dateCreated datePublished" datetime="2020-09-09T23:37:04+08:00">2020-09-09</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2020-09-23 14:08:54" itemprop="dateModified" datetime="2020-09-23T14:08:54+08:00">2020-09-23</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">In</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%B8%B8%E6%88%8F/" itemprop="url" rel="index"><span itemprop="name">游戏</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="far fa-comment"></i>
-      </span>
-      <span class="post-meta-item-text">Valine: </span>
-    
-    <a title="valine" href="/2020/09/09/Minecraft/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/09/09/Minecraft/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用 java 版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给 mojang 氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用 Linux 建的服务器，那完全可以用 ssh 端口转发的方式把远端服务器加进局域网（实际是加到127.0.0.1），尝试了一下果然成功了！但成功以后发现原来其实offline模式也是可以连私人服务器的。。。anyway记录一下整个过程！
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020/09/09/Minecraft/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
         
-      
-    </div>
 
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://kxz18.github.io/2020/06/25/GNN/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.jpg">
-      <meta itemprop="name" content="kxz18">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="学习飞翔的企鹅">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/06/25/GNN/" class="post-title-link" itemprop="url">GNN（二）：图神经网络——深层编码器、GCN、GAT</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-              
-
-              <time title="Created: 2020-06-25 23:25:57 / Modified: 23:34:56" itemprop="dateCreated datePublished" datetime="2020-06-25T23:25:57+08:00">2020-06-25</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">In</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
-    
-      <span class="post-meta-item-icon">
-        <i class="far fa-comment"></i>
-      </span>
-      <span class="post-meta-item-text">Valine: </span>
-    
-    <a title="valine" href="/2020/06/25/GNN/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/06/25/GNN/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020/06/25/GNN/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
         
-      
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/09/09/Minecraft/" rel="prev" title="Minecraft Java版服务器搭建（Linux）与客户端连接">
+      <i class="fa fa-chevron-left"></i> Minecraft Java版服务器搭建（Linux）与客户端连接
+    </a></div>
+      <div class="post-nav-item"></div>
     </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
       </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://kxz18.github.io/2020/06/24/GNNrepr/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.jpg">
-      <meta itemprop="name" content="kxz18">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="学习飞翔的企鹅">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2020/06/24/GNNrepr/" class="post-title-link" itemprop="url">GNN（一）：图的表征学习</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-              
-
-              <time title="Created: 2020-06-24 16:51:45 / Modified: 20:44:21" itemprop="dateCreated datePublished" datetime="2020-06-24T16:51:45+08:00">2020-06-24</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">In</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
-                </span>
-            </span>
-
-          
-  
-  <span class="post-meta-item">
     
-      <span class="post-meta-item-icon">
-        <i class="far fa-comment"></i>
-      </span>
-      <span class="post-meta-item-text">Valine: </span>
-    
-    <a title="valine" href="/2020/06/24/GNNrepr/#valine-comments" itemprop="discussionUrl">
-      <span class="post-comments-count valine-comment-count" data-xid="/2020/06/24/GNNrepr/" itemprop="commentCount"></span>
-    </a>
-  </span>
-  
-  
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>机器学习的第一件事是需要将训练所用的未处理的数据（raw data）转化为具有一定格式的数据（structured data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如 word embedding 所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2020/06/24/GNNrepr/#more" rel="contents">
-                Read more &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
   </article>
   
   
   
 
 
-  
-
-
 
         </div>
         
+    <div class="comments" id="valine-comments"></div>
 
 <script>
   window.addEventListener('tabs:register', () => {
@@ -757,59 +542,6 @@
   
 
   
-      
-
-<script>
-  if (typeof MathJax === 'undefined') {
-    window.MathJax = {
-      loader: {
-        source: {
-          '[tex]/amsCd': '[tex]/amscd',
-          '[tex]/AMScd': '[tex]/amscd'
-        }
-      },
-      tex: {
-        inlineMath: {'[+]': [['$', '$']]},
-        tags: 'ams'
-      },
-      options: {
-        renderActions: {
-          findScript: [10, doc => {
-            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
-              const display = !!node.type.match(/; *mode=display/);
-              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
-              const text = document.createTextNode('');
-              node.parentNode.replaceChild(text, node);
-              math.start = {node: text, delim: '', n: 0};
-              math.end = {node: text, delim: '', n: 0};
-              doc.math.push(math);
-            });
-          }, '', false],
-          insertedScript: [200, () => {
-            document.querySelectorAll('mjx-container').forEach(node => {
-              let target = node.parentNode;
-              if (target.nodeName.toLowerCase() === 'li') {
-                target.parentNode.classList.add('has-jax');
-              }
-            });
-          }, '', false]
-        }
-      }
-    };
-    (function () {
-      var script = document.createElement('script');
-      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
-      script.defer = true;
-      document.head.appendChild(script);
-    })();
-  } else {
-    MathJax.startup.document.state(0);
-    MathJax.texReset();
-    MathJax.typeset();
-  }
-</script>
-
-    
 
   
 
