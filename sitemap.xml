@@ -74,14 +74,21 @@
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/netns-PPPoE-tcpdump/</loc>
+    <loc>http://kxz18.github.io/tags/netns/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/Minecraft/</loc>
+    <loc>http://kxz18.github.io/tags/PPPoE/</loc>
+    <lastmod>2020-11-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>http://kxz18.github.io/tags/tcpdump/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
@@ -89,6 +96,13 @@
   
   <url>
     <loc>http://kxz18.github.io/tags/Wine/</loc>
+    <lastmod>2020-11-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>http://kxz18.github.io/tags/Minecraft/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
