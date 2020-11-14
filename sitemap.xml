@@ -67,13 +67,6 @@
 
   
   <url>
-    <loc>http://kxz18.github.io/tags/netns-PPPoE-tcpdump/</loc>
-    <lastmod>2020-11-14</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <url>
     <loc>http://kxz18.github.io/tags/GNN/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
@@ -81,7 +74,7 @@
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/Wine/</loc>
+    <loc>http://kxz18.github.io/tags/netns-PPPoE-tcpdump/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
@@ -94,17 +87,24 @@
     <priority>0.6</priority>
   </url>
   
+  <url>
+    <loc>http://kxz18.github.io/tags/Wine/</loc>
+    <lastmod>2020-11-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
 
   
   <url>
-    <loc>http://kxz18.github.io/categories/Linux/</loc>
+    <loc>http://kxz18.github.io/categories/%E5%AD%A6%E4%B9%A0/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/categories/%E5%AD%A6%E4%B9%A0/</loc>
+    <loc>http://kxz18.github.io/categories/Linux/</loc>
     <lastmod>2020-11-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
