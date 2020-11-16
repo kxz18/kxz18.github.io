@@ -2,56 +2,56 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>http://kxz18.github.io/2020/11/14/Netns/</loc>
+    <loc>https://kxz18.github.io/2020/11/14/Netns/</loc>
     
     <lastmod>2020-11-14</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/2020/11/12/Wechat/</loc>
+    <loc>https://kxz18.github.io/2020/11/12/Wechat/</loc>
     
     <lastmod>2020-11-12</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/2020/09/09/Minecraft/</loc>
+    <loc>https://kxz18.github.io/2020/09/09/Minecraft/</loc>
     
     <lastmod>2020-09-23</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/2020/06/25/GNN/</loc>
+    <loc>https://kxz18.github.io/2020/06/25/GNN/</loc>
     
     <lastmod>2020-06-25</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/2020/06/24/GNNrepr/</loc>
+    <loc>https://kxz18.github.io/2020/06/24/GNNrepr/</loc>
     
     <lastmod>2020-06-24</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/categories/index.html</loc>
+    <loc>https://kxz18.github.io/categories/index.html</loc>
     
     <lastmod>2020-06-24</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/about/index.html</loc>
+    <loc>https://kxz18.github.io/about/index.html</loc>
     
     <lastmod>2020-06-24</lastmod>
     
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/index.html</loc>
+    <loc>https://kxz18.github.io/tags/index.html</loc>
     
     <lastmod>2020-06-24</lastmod>
     
@@ -59,51 +59,51 @@
   
 
   <url>
-    <loc>http://kxz18.github.io/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
 
   
   <url>
-    <loc>http://kxz18.github.io/tags/GNN/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/GNN/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/netns/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/netns/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/PPPoE/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/PPPoE/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/tcpdump/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/tcpdump/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/Wine/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/Minecraft/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/tags/Minecraft/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/tags/Wine/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
@@ -111,22 +111,22 @@
 
   
   <url>
-    <loc>http://kxz18.github.io/categories/%E5%AD%A6%E4%B9%A0/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/categories/%E5%AD%A6%E4%B9%A0/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/categories/Linux/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/categories/Linux/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>http://kxz18.github.io/categories/%E6%B8%B8%E6%88%8F/</loc>
-    <lastmod>2020-11-14</lastmod>
+    <loc>https://kxz18.github.io/categories/%E6%B8%B8%E6%88%8F/</loc>
+    <lastmod>2020-11-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
