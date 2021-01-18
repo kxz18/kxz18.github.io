@@ -24,13 +24,13 @@
 
   <meta name="description" content="​        虽然python的包管理基本都可以用pip执行，但在很多服务器上用户没有root权限，因此不能直接pip install。此时可以选择用conda作为包管理器。由于Anaconda包含很多科学计算包，体积十分庞大且大多数我都不太用得到，因此我选择用conda的精简版——miniconda。miniconda只包含一个包管理器，不会预装科学计算包。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Linux 非 Root 用户安装 conda">
+<meta property="og:title" content="Linux 非 Root 用户安装与使用 conda">
 <meta property="og:url" content="https://kxz18.github.io/2021/01/18/Miniconda/index.html">
 <meta property="og:site_name" content="学习飞翔的企鹅">
 <meta property="og:description" content="​        虽然python的包管理基本都可以用pip执行，但在很多服务器上用户没有root权限，因此不能直接pip install。此时可以选择用conda作为包管理器。由于Anaconda包含很多科学计算包，体积十分庞大且大多数我都不太用得到，因此我选择用conda的精简版——miniconda。miniconda只包含一个包管理器，不会预装科学计算包。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2021-01-18T00:27:07.267Z">
-<meta property="article:modified_time" content="2021-01-18T00:53:23.924Z">
+<meta property="article:modified_time" content="2021-01-18T01:10:05.266Z">
 <meta property="article:author" content="kxz18">
 <meta property="article:tag" content="non-root">
 <meta property="article:tag" content="conda">
@@ -49,7 +49,7 @@
   };
 </script>
 
-  <title>Linux 非 Root 用户安装 conda | 学习飞翔的企鹅</title>
+  <title>Linux 非 Root 用户安装与使用 conda | 学习飞翔的企鹅</title>
   
 
 
@@ -292,7 +292,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          Linux 非 Root 用户安装 conda
+          Linux 非 Root 用户安装与使用 conda
         </h1>
 
         <div class="post-meta">
@@ -303,7 +303,7 @@
               <span class="post-meta-item-text">Posted on</span>
               
 
-              <time title="Created: 2021-01-18 08:27:07 / Modified: 08:53:23" itemprop="dateCreated datePublished" datetime="2021-01-18T08:27:07+08:00">2021-01-18</time>
+              <time title="Created: 2021-01-18 08:27:07 / Modified: 09:10:05" itemprop="dateCreated datePublished" datetime="2021-01-18T08:27:07+08:00">2021-01-18</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -353,6 +353,7 @@
 <p>按回车确认即可。</p>
 <p>安装完成后installer会提示是否要调用<code>conda init</code>将conda的激活写入<strong>.bashrc</strong>。如果输入yes的话启动终端会自动激活conda（即出现base环境提示）。否则每次都需要手动激活。一般输入<strong>yes</strong>确认。</p>
 <p>等待安装完成，重启终端即可使用conda。</p>
+<p>conda下载过慢需要换源可以参考<a href="https://zhuanlan.zhihu.com/p/87123943" target="_blank" rel="noopener">https://zhuanlan.zhihu.com/p/87123943</a></p>
 <h2 id="三、conda常用指令"><a href="#三、conda常用指令" class="headerlink" title="三、conda常用指令"></a>三、conda常用指令</h2><p>创建环境</p>
 <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">conda create -n name python=3.8  <span class="comment"># 创建python3.8，名为name的环境</span></span><br></pre></td></tr></table></figure>
 
