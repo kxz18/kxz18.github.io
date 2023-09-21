@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="机器学习的第一件事是需要将训练所用的未处理的数据（raw data）转化为具有一定格式的数据（structured data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GNN（一）：图的表征学习">
+<meta property="og:url" content="https://kxz18.github.io/2020/06/24/GNNrepr/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="机器学习的第一件事是需要将训练所用的未处理的数据（raw data）转化为具有一定格式的数据（structured data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2020/06/24/GNNrepr/three_types_of_point.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/06/24/GNNrepr/probability.png">
+<meta property="article:published_time" content="2020-06-24T08:51:45.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.209Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="GNN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2020/06/24/GNNrepr/three_types_of_point.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2020/06/24/GNNrepr/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>GNN（一）：图的表征学习 | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一embedding-nodesnode2vec"><span class="nav-text">一、Embedding Nodes（node2vec）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#定义-encoder"><span class="nav-text">1. 定义 encoder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#定义-similarity"><span class="nav-text">2. 定义 similarity</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#random-walk-approaches"><span class="nav-text">Random Walk Approaches</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#原理"><span class="nav-text">原理</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#生成策略"><span class="nav-text">生成策略</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#参数优化optimization"><span class="nav-text">3. 参数优化（Optimization）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#损失函数loss"><span class="nav-text">损失函数（Loss）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#负采样negative-sampling简化"><span class="nav-text">负采样（Negative
+Sampling）简化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二embedding-entire-graph"><span class="nav-text">二、Embedding Entire Graph</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#加和平均"><span class="nav-text">1. 加和&#x2F;平均</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#超节点super-node表示"><span class="nav-text">2. 超节点（super-node）表示</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#anonymous-walk-embedding"><span class="nav-text">3. Anonymous Walk Embedding</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#reference"><span class="nav-text">Reference</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2020/06/24/GNNrepr/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GNN（一）：图的表征学习
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-06-24 16:51:45" itemprop="dateCreated datePublished" datetime="2020-06-24T16:51:45+08:00">2020-06-24</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2020/06/24/GNNrepr/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2020/06/24/GNNrepr/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>机器学习的第一件事是需要将训练所用的未处理的数据（raw
+data）转化为具有一定格式的数据（structured
+data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word
+embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如
+word embedding
+所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。<a id="more"></a></p>
+<h2 id="一embedding-nodesnode2vec">一、Embedding Nodes（node2vec）</h2>
+<p>将节点通过一个编码器（encoder）映射为高维空间的向量来表示节点。映射后的向量需要满足的条件是：两个节点对应的向量能反应这两个节点在原图中的相似性。向量的相似性即两者的夹角，因此可以用点乘来的值来表示。如果需要表示的节点为<span
+class="math inline">\(u,v\)</span>，而经 encoder 得到的向量为<span
+class="math inline">\(\bf{z_v},\bf{z_u}\)</span>，则应满足： <span
+class="math display">\[
+similarity(u, v)\approx \bf{z_v}^T\bf{z_u}
+\]</span> 因此图中节点的表示学习的方法就可以用三个步骤表示：</p>
+<ol type="1">
+<li>定义一个 encoder，用来将节点的 one-hot 编码映射成固定维度的向量</li>
+<li>定义一个描述原图中两个节点相似性的函数 <span
+class="math inline">\(similarity\)</span></li>
+<li>优化 encoder 中的参数使得最后符合 <span
+class="math inline">\(similarity(u, v)\approx
+\bf{z_v}^T\bf{z_u}\)</span></li>
+</ol>
+<h3 id="定义-encoder">1. 定义 encoder</h3>
+<p>此部分比较简单，参考NLP中的 word embedding，只需要对 one-hot
+的编码进行矩阵乘即可。 <span class="math display">\[
+\begin{array}{cc}
+v \in \mathbb{I}^{|V|}\\
+\bf{Z} \in\mathbb{R}^{d\times |V|}
+\end{array}
+\]</span> 则对应节点 <span class="math inline">\(v\)</span>
+的嵌入向量为： <span class="math display">\[
+\mathbf{z_v} =\mathbf{Z} v,\ \mathbf{z_v}\in \mathbb{R}^d
+\]</span> 这样的方法其实相当于 embedding 矩阵 <span
+class="math inline">\(\mathbf{Z}\)</span>
+的每一列就对应一个节点的表示向量。维度 <span
+class="math inline">\(d\)</span> 是超参，在网络构建前确定。</p>
+<h3 id="定义-similarity">2. 定义 similarity</h3>
+<p>这部分是节点表示学习的关键，不同的 similarity
+定义的方法会带来不同的损失函数，节点最后的表示向量的适用任务也不一样。比较容易想到的有两种定义
+similarity 的方法：</p>
+<ol type="1">
+<li>两个点相互连接则定义为相似（Adjaceny-based）</li>
+<li>两个点的共同的邻居数量表示相似程度（Multi-hop similarity
+definations）</li>
+</ol>
+<p>但这两种显然都只是考虑了图的局部性质，有比较大的局限性。因此更常用的方法是
+Random Walk Approaches。</p>
+<h4 id="random-walk-approaches">Random Walk Approaches</h4>
+<h5 id="原理">原理</h5>
+<p>首先定义什么叫 <strong>random
+walk</strong>：在给定的图中选定一个点<span
+class="math inline">\(v\)</span>为起点，随机选择其邻接的点<span
+class="math inline">\(v_1\)</span>作为下一个点，再随机选择<span
+class="math inline">\(v_1\)</span>邻接的点<span
+class="math inline">\(v_2\)</span>作为下一个点，直到路径达到指定的长度。这样随机选出的一个点序列称为一个
+<strong>random walk</strong>。</p>
+<p>那么可以定义两点（<span
+class="math inline">\(u,v\)</span>）之间的相似度为这两点出现在同一条
+<strong>random walk</strong> 中的概率。</p>
+<p>使用这种定义方法的好处是同时考虑到了局部和全局的相似关系，因为根据不同的随机策略以及不同的路径长度可以均衡关注局部和关注全局的两种倾向。同时也不需要考虑所有的点对，只需要考虑在随机过程中每条<strong>random
+walk</strong> 中出现的点对即可。</p>
+<h5 id="生成策略">生成策略</h5>
+<p>最简单的生成策略是固定路径的长度，每次随机一个邻接的点作为下一步。但这样的方式过于简单，无法对其的
+focus 进行人工调整。因此在 node2vec
+的实现当中，使用的是有偏的选择道路的方式（Biased Walks）。</p>
+<p>两种经典的有偏的选择道路的方式即广度优先（BFS）和深度优先（DFS）。可以很明显地看出来，广度优先更聚焦于局部（Local）的节点连接状况（Micro-view
+of
+Neighborhood），深度优先则更关注全局（Global）的节点连接状况（Macro-view
+of
+Neighborhood）。与一个点连接的周围点根据其性质分为三种情况：前一个节点，距离起点一样的节点，距离起点更远的节点。</p>
+<p><img src="three_types_of_point.png" alt="types" style="zoom:50%;" /></p>
+<p>为了平衡这些关系，node2vec 在实现中定义了两个超参：</p>
+<ul>
+<li>p：return parameter，描述返回上一节点的概率</li>
+<li>q：in-out parameter，描述局部和全局的平衡</li>
+</ul>
+<p>以<span
+class="math inline">\(1、\frac{1}{q}、\frac{1}{p}\)</span>来表示前往更近的节点、前往更远的节点、返回前一节点的概率（还没有归一化）。例如对以下的图，<span
+class="math inline">\(s_1\)</span>为父节点，<span
+class="math inline">\(s_2\)</span>为距起点<span
+class="math inline">\(u\)</span>距离为2的点，<span
+class="math inline">\(s_3\)</span>和<span
+class="math inline">\(s_4\)</span>为距起点距离为3的点，当前点为<span
+class="math inline">\(w\)</span>，则前往<span
+class="math inline">\(s_2\)</span>的概率为<span
+class="math inline">\(\frac{1}{1+\frac{1}{p}+2\times
+\frac{1}{q}}\)</span>。</p>
+<p><img src="probability.png" alt="pro" style="zoom:50%;" /></p>
+<p>可以见到，越低的<span
+class="math inline">\(p\)</span>值，越倾向于关注局部，越低的<span
+class="math inline">\(q\)</span>值，越倾向于全局。给定不同的参数值，就可以对节点表示学习的关注点进行调节。</p>
+<h3 id="参数优化optimization">3. 参数优化（Optimization）</h3>
+<p>要使用梯度下降的方法进行训练，首先需要得到一个目标的损失函数。</p>
+<h4 id="损失函数loss">损失函数（Loss）</h4>
+<p>以 <span class="math inline">\(N_R(u)\)</span> 表示以方法 <span
+class="math inline">\(R\)</span> 得到的点 <span
+class="math inline">\(u\)</span> 的邻居点集合，这些邻居点被认为是和点
+<span class="math inline">\(u\)</span>
+有一定程度相似的（邻居点不一定是邻接的点）。例如方法 <span
+class="math inline">\(R\)</span> 为 random walk approaches 时，<span
+class="math inline">\(N_R(u)\)</span> 表示的就是在点 <span
+class="math inline">\(u\)</span> 出现的所有 random walk
+中的其他点的集合。注意这个集合中是允许出现重复点的，例如在 random walk
+approaches 中可能随机到往回走，这样某个点就可能多次被走到。</p>
+<p>则优化目标应该是最大化给定各个点，<span
+class="math inline">\(N_R\)</span>中的点是它们的邻居点的条件概率，同样用取
+log 的方式将乘法变成加法： <span class="math display">\[
+\max_z\sum_{u\in V}\log P(N_R(u)|u)
+\]</span> 用 softmax 方法进行点<span
+class="math inline">\(v\)</span>是点<span
+class="math inline">\(u\)</span>的邻居点的条件概率计算，则对应的损失函数为：
+<span class="math display">\[
+\begin{array}{cc}
+\mathcal L = \sum_{u\in V}\sum_{v \in N_R(u)}-\log P(v|\mathbf{z_u})\\
+其中\ P(v|\mathbf{z_u}) =
+\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}}
+\end{array}
+\]</span></p>
+<h4 id="负采样negative-sampling简化">负采样（Negative
+Sampling）简化</h4>
+<p>但是这么做对loss的计算复杂度是非常高的，在最外面的求和符号是<span
+class="math inline">\(O(|V|)\)</span>的循环次数，在计算 softmax
+的时候又需要循环 <span class="math inline">\(O(|V|)\)</span> 次，总共是
+<span class="math inline">\(O(|V|^2)\)</span>
+的复杂度。因此在实际使用中采取负采样（negative
+sampling）的方法进行近似（注意是效果上的近似，并不能靠数学公式推导得出）：
+<span class="math display">\[
+\begin{array}{cc}
+\log(\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}})\approx \log(\sigma
+(\mathbf{z_u}^T\mathbf{z_v}))) - \sum_{i=1}^k \log
+(\sigma(\mathbf{z_u}^T\mathbf{z_{n_i}}))) \\
+其中\ \sigma\ 是 sigmoid 函数 f(x) =
+\frac{1}{1+e^{-x}}，n_i是在所有点的编号中进行随机选取的编号
+\end{array}
+\]</span>
+严格来说约等号的两侧是不同的函数，但优化后者一定程度上和优化前者得到的效果是一样的。负采样的思想是得到一个点的“真实得分”，再加上一些“噪声”作为最后的得分。这也就是为什么需要加用sigmoid函数，因此sigmoid函数可以把实数映射到<span
+class="math inline">\((0, 1]\)</span>区间，正好作为概率的代表。其中<span
+class="math inline">\(k\)</span>的取值越大，训练的结果泛化能力越强，一般情况下<span
+class="math inline">\(k\)</span>取 5～20。</p>
+<h2 id="二embedding-entire-graph">二、Embedding Entire Graph</h2>
+<p>有了对节点的表示学习之后，还可以进一步对一张图（整图或子图）进行编码。常见的也有三种方法。</p>
+<h3 id="加和平均">1. 加和/平均</h3>
+<p>首先使用 node2vec
+方法编码每个节点，再将需要编码的图中的每个节点的编码加和或取平均作为图的编码。</p>
+<h3 id="超节点super-node表示">2. 超节点（super-node）表示</h3>
+<p>新增一个超节点（super-node），该节点与需要表示的图中的每个节点都连有一条边，再进行一次
+node2vec 操作，用这个节点的编码来表示图的编码。</p>
+<h3 id="anonymous-walk-embedding">3. Anonymous Walk Embedding</h3>
+<p>继续使用 <strong>random walk approaches</strong>
+的想法，对于相同形式的 <strong>random
+walk</strong>，将它们归为同一类。例如某一个路径为<span
+class="math inline">\(A - B - A - C\)</span>，另一条路径为<span
+class="math inline">\(D-A-D-F\)</span>，两条路径的模式均为<span
+class="math inline">\(1-2-1-3\)</span>，则归为同一类，这就是一个
+<strong>Anonymous
+Walk</strong>。给定路径长作为超参，枚举所有路径模式及其出现频率，用最大似然法近似这些模式的分布，得到图的编码。</p>
+<p>这种想法的缺点在于枚举所有的路径非常耗时，当路径长增长时复杂度是指数增长的。因此另一种想法是对路径模式进行采样，随机产生
+<span class="math inline">\(m\)</span> 条 <strong>random walk</strong>
+并计算它们的路径模式，用以近似真实的路径模式分布。其中要使误差超过<span
+class="math inline">\(\varepsilon\)</span>的小于<span
+class="math inline">\(\delta\)</span>时需要的采样数 <span
+class="math inline">\(m\)</span> 满足： <span class="math display">\[
+\begin{array}{cc}
+m=\lceil\frac{2}{\varepsilon^2}(\log (2^\eta - 2)-\log(\delta)) \rceil\\
+其中\log以e为底，\eta 为给定路径长下路径模式的总种类数
+\end{array}
+\]</span></p>
+<p>除此之外，还有一种想法是直接将 Anonymous Walk 编码，使一个由多个
+Anonymous Walk 组成的序列变得可预测。具体内容参见文献：<a
+href="https://arxiv.org/pdf/1805.11921.pdf">Anonymous Walk Embeddings,
+ICML 2018</a>。</p>
+<h2 id="reference">Reference</h2>
+<p>[1] <a
+href="http://web.stanford.edu/class/cs224w/slides/07-noderepr.pdf">Stanford
+CS224W: Machine Learning with Graphs，Lecture 7 - Graph Representation
+Learning</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GNN/" rel="tag"># GNN</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2020/06/25/GNN/" rel="next" title="GNN（二）：图神经网络——深层编码器、GCN、GAT">
+      GNN（二）：图神经网络——深层编码器、GCN、GAT <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

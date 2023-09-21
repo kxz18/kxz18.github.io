@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="​ 在一些场景下需要在两台不同内网中的主机间建立连接。例如在家里放了一台常开的电脑，电脑处于家中内网中，平时我们在外面无法直接访问。此时有两种解决方案。第一种是利用Sakura Frp等内网端口映射的工具，但是如果通信流量较大（比如在家里电脑上开网站、代理等），就会被内网映射服务的限速、限额影响。第二种方案就是进行p2p连接，公网服务器只用于协助建立两台主机的连接，建立完连接后两台主机之间直接通信">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用 Zerotier 进行 p2p 连接">
+<meta property="og:url" content="https://kxz18.github.io/2021/10/23/Zerotier/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="​ 在一些场景下需要在两台不同内网中的主机间建立连接。例如在家里放了一台常开的电脑，电脑处于家中内网中，平时我们在外面无法直接访问。此时有两种解决方案。第一种是利用Sakura Frp等内网端口映射的工具，但是如果通信流量较大（比如在家里电脑上开网站、代理等），就会被内网映射服务的限速、限额影响。第二种方案就是进行p2p连接，公网服务器只用于协助建立两台主机的连接，建立完连接后两台主机之间直接通信">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2021-10-23T01:53:30.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.244Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="p2p">
+<meta property="article:tag" content="NAT">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://kxz18.github.io/2021/10/23/Zerotier/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>使用 Zerotier 进行 p2p 连接 | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一安装"><span class="nav-text">一、安装</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二建立网络"><span class="nav-text">二、建立网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三加入网络"><span class="nav-text">三、加入网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#四其他"><span class="nav-text">四、其他</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2021/10/23/Zerotier/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用 Zerotier 进行 p2p 连接
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2021-10-23 09:53:30" itemprop="dateCreated datePublished" datetime="2021-10-23T09:53:30+08:00">2021-10-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux/" itemprop="url" rel="index"><span itemprop="name">Linux</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2021/10/23/Zerotier/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2021/10/23/Zerotier/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​
+在一些场景下需要在两台不同内网中的主机间建立连接。例如在家里放了一台常开的电脑，电脑处于家中内网中，平时我们在外面无法直接访问。此时有两种解决方案。第一种是利用<a
+href="https://www.natfrp.com/">Sakura
+Frp</a>等内网端口映射的工具，但是如果通信流量较大（比如在家里电脑上开网站、代理等），就会被内网映射服务的限速、限额影响。第二种方案就是进行p2p连接，公网服务器只用于协助建立两台主机的连接，建立完连接后两台主机之间直接通信，而不用再通过公网服务器。Zerotier就提供这样的服务，并且提供一台免费的公网服务器。<a id="more"></a>p2p连接是基于NAT穿透实现的，而NAT穿透的原理搜索即可，有很多优质博客。本文只记录使用方法。</p>
+<h2 id="一安装">一、安装</h2>
+<p>首先按照<a
+href="https://www.zerotier.com/">Zerotier官网</a>的指导安装工具，Windows和MacOs都是带GUI的APP，Linux为命令行工具<code>zerotier-cli</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -s https://install.zerotier.com | sudo bash</span><br></pre></td></tr></table></figure>
+<p>安装完成后zerotier会自动生成一个随机token，在
+/var/lib/zerotier-one/authtoken.secret
+中，通常需要sudo权限才能查看。同时zerotier会自动启动 zerotier-one
+服务，在 localhost:9993 启动 API
+后端，与后端的交互需要token进行权限验证。服务状态可以用<code>systemctl status zerotier-one</code>
+查看，如果没有启动可以用 <code>systemctl start zerotier-one</code>
+手动启动服务。</p>
+<h2 id="二建立网络">二、建立网络</h2>
+<p>我们使用self-hosting的方式构建网络，即某一个客户端同时也是网络的controller（可以用来管理网络准入、ip分配等，但并不是p2p连接中所需要的中间公网服务器，中间公网服务器仍由zerotier提供）。官方的指导在<a
+href="https://docs.zerotier.com/self-hosting/network-controllers">这里</a>。我们用<strong>主机A</strong>来建立controller。</p>
+<p>由于每次使用API都需要token验证，因此为了方便，首先将token放入环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">TOKEN=$(sudo cat /var/lib/zerotier-one/authtoken.secret)</span><br></pre></td></tr></table></figure>
+<p>一台主机在网络（Network）中是一个节点（Node），并会被zerotier分配一个10位的节点id。主机加入虚拟网络时会通过节点id来寻找该网络的controller。可以通过两种方式查询当前主机的节点id：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 通过zerotier-cli，返回 200 info 节点id 版本号 online</span></span><br><span class="line">sudo zerotier-cli info</span><br><span class="line"><span class="comment"># 通过API，节点id在"address"字段</span></span><br><span class="line">curl <span class="string">"http://localhost:9993/status"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>为了方便，将节点id加入环境变量</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">NODEID=your-node-id</span><br></pre></td></tr></table></figure>
+<p>接下来我们用当前的节点作为controller创建一个虚拟网络。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NODEID&#125;</span>______"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d &#123;&#125;</span><br></pre></td></tr></table></figure>
+<p>通过post请求建立网络，会生成一个随机的16位网络id。为了方便，将网络id加入环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">NWID=your-network-id</span><br></pre></td></tr></table></figure>
+<p>可以通过以下指令查看当前节点管理的所有网络的id：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>通过以下指令可以查看指定网络的信息配置信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>通过以下指令可以查看加入当前网络的所有节点，在没有节点加入该网络时，返回的是空：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>接下来设置网络的ip分配，并设置为private网络，这样别的节点加入网络就需要controller的授权：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># ipRangeStart和ipRangeEnd指定了子网ip分配的范围</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> \</span><br><span class="line">-d <span class="string">'&#123;"ipAssignmentPools": [&#123;"ipRangeStart": "192.168.192.1", "ipRangeEnd": "192.168.192.254"&#125;], "routes": [&#123;"target": "192.168.192.0/24", "via": null&#125;], "v4AssignMode": "zt", "private": true &#125;'</span></span><br></pre></td></tr></table></figure>
+<h2 id="三加入网络">三、加入网络</h2>
+<p>在另一台主机B上安装zerotier，并通过以下指令加入刚创建的网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># network-id是16位的网络id</span></span><br><span class="line">sudo zerotier-cli join network-id</span><br></pre></td></tr></table></figure>
+<p>此时再在<strong>主机A</strong>上查看网络所含节点，应当包含<strong>主机B</strong>的节点id，并且是字典的key，value为1：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>需要在controller（<strong>主机A</strong>）上进行授权：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># MEMID是主机B的节点id</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": true&#125;'</span></span><br></pre></td></tr></table></figure>
+<p>此时再查看节点成员列表，<strong>主机B</strong>的value会变成3。注意<strong>主机A</strong>是controller只代表它是类似于路由器的存在，因此需要用同样的方法将<strong>主机A</strong>自己也加入网络才能使AB互相访问。</p>
+<p>完成之后在主机AB上分别使用<code>ip addr</code>查看自己的网络接口，会看到里面多了<strong>zt开头的</strong>网络接口以及主机在虚拟网络中的ip地址，使用虚拟网络中的ip地址即可互相访问。例如<strong>主机A</strong>的地址是192.168.192.5，<strong>主机B</strong>的地址是192.168.192.6，在<strong>主机A</strong>上可以通过<code>ssh user@192.168.192.6</code>使用ssh连接<strong>主机B</strong>。如果<strong>主机A</strong>在0.0.0.0:8080开了一个网站，在<strong>主机B</strong>上也可以使用192.168.192.5:8080进行访问。主机的ip地址是根据public
+key算出来的，算法在identity.cpp里，因此同一主机的ip是固定的。</p>
+<h2 id="四其他">四、其他</h2>
+<p>如果要取消对某个节点的授权，可以在controller上使用以下指令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": false&#125;'</span></span><br></pre></td></tr></table></figure>
+<p>如果要从网络中删除某个成员，可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -X DELETE <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>如果想要清理掉这些网络，可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 先停止zerotier服务</span></span><br><span class="line">systemctl stop zerotier-one</span><br><span class="line"><span class="comment"># 删除现在的服务配置</span></span><br><span class="line"><span class="built_in">cd</span> /var/lib/zerotier-one/</span><br><span class="line">rm -rf ./controller.d/</span><br><span class="line"><span class="comment"># 重新启动zerotier服务</span></span><br><span class="line">systemctl start zerotier-one</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/p2p/" rel="tag"># p2p</a>
+              <a href="/tags/NAT/" rel="tag"># NAT</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/01/18/Miniconda/" rel="prev" title="Linux 非 Root 用户安装与使用 conda">
+      <i class="fa fa-chevron-left"></i> Linux 非 Root 用户安装与使用 conda
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/06/19/Diffusion/" rel="next" title="基础Diffusion生成模型与DDPM">
+      基础Diffusion生成模型与DDPM <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

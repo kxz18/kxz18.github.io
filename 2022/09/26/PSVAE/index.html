@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="This is a blog for our paper Molecule Generation by Principal Subgraph Mining and Assembling which is accepted by NeurIPS 2022. Molecule generation is critical for various applications in domains like">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Molecule Generation by Principal Subgraph Mining and Assembling">
+<meta property="og:url" content="https://kxz18.github.io/2022/09/26/PSVAE/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="This is a blog for our paper Molecule Generation by Principal Subgraph Mining and Assembling which is accepted by NeurIPS 2022. Molecule generation is critical for various applications in domains like">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/patterns.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/extract.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/alg_extract.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/ps.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/model.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/molecules.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/prop_opt.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/proper_size.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/09/26/PSVAE/corr.png">
+<meta property="article:published_time" content="2022-09-26T11:17:11.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.239Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="generation">
+<meta property="article:tag" content="molecule">
+<meta property="article:tag" content="subgraph">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2022/09/26/PSVAE/patterns.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2022/09/26/PSVAE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Molecule Generation by Principal Subgraph Mining and Assembling | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#principal-subgraph"><span class="nav-text">Principal Subgraph</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#what-is-principal-subgraph"><span class="nav-text">What is Principal Subgraph</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#how-to-extract-principal-subgraphs"><span class="nav-text">How to Extract Principal
+Subgraphs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#subgraph-level-decomposition"><span class="nav-text">Subgraph-level Decomposition</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#two-step-generation"><span class="nav-text">Two-step Generation</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#generation-of-subgraphs"><span class="nav-text">Generation of Subgraphs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#global-assembling-of-subgraphs"><span class="nav-text">Global Assembling of
+Subgraphs</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#property-optimization"><span class="nav-text">Property Optimization</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#analysis"><span class="nav-text">Analysis</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#proper-size-of-vocabulary"><span class="nav-text">Proper Size of Vocabulary</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#correlations-between-principal-subgraphs-and-properties"><span class="nav-text">Correlations
+Between Principal Subgraphs and Properties</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#discussion"><span class="nav-text">Discussion</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#contact"><span class="nav-text">Contact</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2022/09/26/PSVAE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Molecule Generation by Principal Subgraph Mining and Assembling
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2022-09-26 19:17:11" itemprop="dateCreated datePublished" datetime="2022-09-26T19:17:11+08:00">2022-09-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/paper/" itemprop="url" rel="index"><span itemprop="name">paper</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2022/09/26/PSVAE/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2022/09/26/PSVAE/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>This is a blog for our paper <a
+href="https://arxiv.org/abs/2106.15098">Molecule Generation by Principal
+Subgraph Mining and Assembling</a> which is accepted by NeurIPS 2022.
+Molecule generation is critical for various applications in domains like
+drug discovery and material science. Current attention has been paid to
+generating molecular graphs based on subgraphs. However, there are two
+critical problems in existing subgraph-level generation methods. First,
+these methods usually construct the vocabulary of subgraphs with
+external chemical libraries (<a
+href="https://arxiv.org/abs/2110.01219">Yang et al., 2021</a>) or with
+hand-crafted rules (<a href="https://arxiv.org/abs/2002.03230" target="_blank" rel="noopener">Jin et
+al., 2020</a>). From the perspective of data science, these subgraphs
+are not designed to capture the combination patterns of atoms and bonds
+in molecules. The second problem is that they assemble the subgraphs in
+a sequential manner, which focuses mostly on the local arrangement. To
+tackle the above problems, we propose a novel notion, <em>principal
+subgraph</em>, along with an theoretically efficient algorithm to
+extract them to construct the vocabulary. We further propose a two-step
+generation framework which first generate a sequence of subgraphs and
+then globally assemble them into a molecule.<a id="more"></a></p>
+<h2 id="principal-subgraph">Principal Subgraph</h2>
+<p>There are some patterns in molecules. For example, below are five
+subgraphs that frequently occurs in the ZINC250K dataset, each of which
+is labeled with the ratio of molecules containing it at the bottom:</p>
+<p><img src="patterns.png" style="zoom:50%"></p>
+<p>Intuitively, using these frequent subgraphs for generation helps the
+model better capture the complicated distribution of molecular graphs.
+Moreover, some frequent subgraphs are closely related to molecular
+properties (the most common example will be functional groups).
+Therefore, using them for generation may also improve the ability of the
+model to optimize molecular properties. And here comes the question: how
+to discover them from a given set of molecules? We know that frequent
+subgraph mining is an NP-hard problem so that we cannot just simply
+enumerate all possible subgraphs and sort them by frequencies.
+Fortunately, we propose an approximate solution to avoid the
+unaffordable efficiency problem while still ensuring the quality of the
+extracted subgraphs. To introduce our solution, we need to first define
+a novel and powerful notion: <em>Principal Subgraph</em> (PS).</p>
+<h3 id="what-is-principal-subgraph">What is Principal Subgraph</h3>
+<p>A molecule can be represented as a graph <span
+class="math inline">\(\mathcal{G} = \langle \mathcal{V}, \mathcal{E}
+\rangle\)</span>, where <span class="math inline">\(\mathcal{V}\)</span>
+is a set of nodes corresponding to atoms and <span
+class="math inline">\(\mathcal{E}\)</span> is a set of edges
+corresponding to chemical bonds. A <em>subgraph</em> of <span
+class="math inline">\(\mathcal{G}\)</span> can be seen as <span
+class="math inline">\(\mathcal{S}=\langle\tilde{\mathcal{V}},
+\tilde{\mathcal{E}} \rangle\subseteq\mathcal{G}\)</span>, were <span
+class="math inline">\(\tilde{\mathcal{V}} \subseteq \mathcal{V}\)</span>
+and <span class="math inline">\(\tilde{\mathcal{E}} \subseteq
+\mathcal{E}\)</span>. We say subgraph <span
+class="math inline">\(\mathcal{S}\)</span> <em>spatially intersects</em>
+with subgraph <span class="math inline">\(\mathcal{S}&#39;\)</span> if
+there are certain atoms in a molecule belong to both <span
+class="math inline">\(\mathcal{S}\)</span> and <span
+class="math inline">\(\mathcal{S}&#39;\)</span>, denoted as <span
+class="math inline">\(\mathcal{S}\cap\mathcal{S}&#39;\neq\emptyset\)</span>.
+Note that if two subgraphs look the same (with the same topology), but
+they are constructed by different atom instances, they are not spatial
+intersected. As mentioned before, The <em>frequency</em> of a subgraph
+occurring in all molecules of a given dataset measures its repeability
+and epidemicity, which should be an important property. Formally, we
+define the frequency of a subgraph <span
+class="math inline">\(\mathcal{S}\)</span> as <span
+class="math inline">\(c(\mathcal{S})=\sum_{i}
+c(\mathcal{S}|\mathcal{G}_i)\)</span> where <span
+class="math inline">\(c(\mathcal{S}|\mathcal{G}_i)\)</span> computes the
+occurrence of <span class="math inline">\(\mathcal{S}\)</span> in a
+molecule <span class="math inline">\(\mathcal{G}_i\)</span>. Without
+loss of generality, we assume all molecules and subgraphs we discuss are
+connected.</p>
+<p>With the aforementioned notations, we can give the definition of
+<em>Principal Subgraph</em>. We call subgraph <span
+class="math inline">\(\mathcal{S}\)</span> a principal subgraph, if any
+other subgraph <span class="math inline">\(\mathcal{S}&#39;\)</span>
+that spatially intersects with <span
+class="math inline">\(\mathcal{S}\)</span> in a certain molecule
+satisfies either <span class="math inline">\(\mathcal{S}&#39;\subseteq
+\mathcal{S}\)</span> or <span class="math inline">\(c(\mathcal{S}&#39;)
+\leq c(\mathcal{S})\)</span>.</p>
+<p>The definition might be a little tricky, but in naturally language
+the definition means that amongst all subgraphs of the larger frequency,
+a principal subgraph basically represents the <strong>largest</strong>
+repetitive pattern in size within the data. It is desirable to leverage
+patterns of this kind as the building blocks for molecule generation
+since those subgraphs with a larger size than them are less
+frequent/reusable. Next, we will propose an algorithm to extract
+principal subgraphs for generation.</p>
+<h3 id="how-to-extract-principal-subgraphs">How to Extract Principal
+Subgraphs</h3>
+<p>We have defined the concept of <em>spatially intersects</em>
+beforehand. Similarly, we can define <em>sptially union</em> as follows:
+if two subgraphs <span class="math inline">\(\mathcal{S}\)</span> and
+<span class="math inline">\(\mathcal{S}&#39;\)</span> appear in the same
+molecule, we call their <em>spatially union</em> subgraph as <span
+class="math inline">\(\mathcal{U=\mathcal{S}\bigcup\mathcal{S}}&#39;\)</span>,
+where the nodes of <span class="math inline">\(\mathcal{U}\)</span> are
+the union set of <span
+class="math inline">\(\tilde{\mathcal{V}}\)</span> and <span
+class="math inline">\(\tilde{\mathcal{V}}&#39;\)</span>, and its edges
+are the union of <span
+class="math inline">\(\tilde{\mathcal{E}}\)</span> and <span
+class="math inline">\(\tilde{\mathcal{E}}&#39;\)</span> plus all edges
+connecting <span class="math inline">\(\mathcal{S}\)</span> and <span
+class="math inline">\(\mathcal{S}&#39;\)</span>. We call each subgraph
+that is put into the vocabulary as a <em>fragment</em> for clearer
+representation. We generate all fragments via the following stages:</p>
+<ol type="1">
+<li><strong>Initialization</strong>. We first decide the size of the
+vocabulary as <span class="math inline">\(N\)</span>. The vocabulary
+<span class="math inline">\(\mathbb{V}\)</span> is initialized with all
+unique atoms (subgraph with one node). Namely, all atoms are included in
+the vocabulary.</li>
+<li><strong>Merge</strong>. For every two neighboring fragments <span
+class="math inline">\(\mathcal{F}\)</span> and <span
+class="math inline">\(\mathcal{F}&#39;\)</span> in the current
+vocabulary, we merge them by deriving the spatial union <span
+class="math inline">\(\mathcal{F}\bigcup\mathcal{F}&#39;\)</span>. Here,
+the neighboring fragments of a given fragment <span
+class="math inline">\(\mathcal{F}\)</span> in a molecule is defined as
+the ones that contain at least one first-order neighbor nodes of a
+certain node in <span class="math inline">\(\mathcal{F}\)</span>.</li>
+<li><strong>Update</strong>. We count the frequency of each identical
+merged subgraph in the last stage. We choose the most frequent one as a
+new fragment in the vocabulary <span
+class="math inline">\(\mathbb{V}\)</span>. Then, we go back to the merge
+stage until the vocabulary size reaches the predefined number <span
+class="math inline">\(N\)</span>.</li>
+</ol>
+<blockquote>
+<p>Each subgraph can be seen as a small molecule, therefore we can
+translate subgraphs into <a
+href="https://en.wikipedia.org/wiki/Simplified_molecular-input_line-entry_system">SMILES</a>
+to transform the graph matching problem into string matching
+problem.</p>
+</blockquote>
+<p>Here we present an example of implementing the algorithm on a toy
+dataset of three molecules: <span
+class="math inline">\(\texttt{C=CC=C}\)</span>, <span
+class="math inline">\(\texttt{CC=CC}\)</span>, <span
+class="math inline">\(\texttt{C=CCC}\)</span>. At the
+<strong>Intialization</strong> stage, we simply define <span
+class="math inline">\(N=3\)</span>, which means that we want to
+construct a vocabulary <span class="math inline">\(\mathbb{V}\)</span>
+of three subgraphs. Then all unique atoms in the dataset are included in
+<span class="math inline">\(\mathbb{V}\)</span>, namely <span
+class="math inline">\(\mathbb{V} = \{\texttt{C}\}\)</span>. We can see
+from figure (a) that each molecule is represented as a set of connected
+<span class="math inline">\(\texttt{C}\)</span>. Next, we enter the
+<strong>Merge</strong> phase. It is obvious that all spatial unions in
+figure (a) include <span class="math inline">\(\texttt{CC}\)</span> and
+<span class="math inline">\(\texttt{C=C}\)</span>. Then in the
+<strong>Update</strong> stage, by counting the frequencies of spatial
+unions in figure (a), we have <span class="math inline">\(c(\texttt{CC})
+= 5\)</span> and <span class="math inline">\(c(\texttt{C=C}) =
+4\)</span>. Therefore we have the most frequent pattern "two <span
+class="math inline">\(\texttt{C}\)</span> connected by a single bond",
+namely <span class="math inline">\(\texttt{CC}\)</span>, included in the
+vocabulary and merge all the patterns in the dataset. By doing this, we
+can see in figure (b) that all carbon pairs connected by a single bond
+is marked in red, which means the two carbons are merged into a single
+node of fragment. One exception occurs at the third molecule where the
+3rd and 4th carbons are not merged. This is because the 3rd carbon is
+already merged into the same node with the 2nd carbon. It is also
+reasonable if the 2nd carbon is left alone instead of the 4th carbon. We
+actullay randomly select one pair to merge if such overlap happens. This
+might introduce some ambiguity into the algorithm, but we will prove
+later that our algorithm can tolerate such ambiguity to some extent.</p>
+<p><img src="extract.png" style="zoom:50%"></p>
+<p>Let's get back to the construction of the vocabulary. Now we have
+<span class="math inline">\(\mathbb{V} = \{\texttt{C},
+\texttt{CC}\}\)</span> and forward to the <strong>Merge</strong> phase
+again. From figure (b) we know the spatial unions in the three molecules
+are <span class="math inline">\(\{\texttt{C=CC}\}\)</span>, <span
+class="math inline">\(\{\texttt{CC=CC}\}\)</span>, and <span
+class="math inline">\(\{\texttt{C=CC}, \texttt{CCC}\}\)</span>,
+respectively. Note that <span
+class="math inline">\(\texttt{CC=C}\)</span> is equivalent to <span
+class="math inline">\(\texttt{C=CC}\)</span> and will always be
+presented as the latter notion, which is ensured by the uniqueness of
+canonical SMILES. In the <strong>Update</strong> phase we have <span
+class="math inline">\(c(\texttt{C=CC}) = 3\)</span>, <span
+class="math inline">\(c(\texttt{CC=CC}) = 1\)</span>, and <span
+class="math inline">\(c(\texttt{CCC}) = 1\)</span>. Therefore <span
+class="math inline">\(\texttt{C=CC}\)</span> is included in <span
+class="math inline">\(\mathbb{V}\)</span> and merged. Now we have <span
+class="math inline">\(\mathbb{V} = \{\texttt{C}, \texttt{CC},
+\texttt{C=CC}\}\)</span> and the size of the vocabulary has reached the
+predefined <span class="math inline">\(N\)</span>, so the algorithm
+stops. For each loop, we also record the frequency of the newly
+generated fragment, which will be used for subgraph-level decomposition
+illustrated in the next section.</p>
+<p>Below is the pseudo code for the above algorithm:</p>
+<p><img src="alg_extract.png" style="zoom:50%"></p>
+<p>The proposed algorithm enjoys the following properties, which ensure
+its efficacy:</p>
+<ul>
+<li><strong>Monotonicity</strong>: The frequency of the non-single-atom
+fragments in <span class="math inline">\(\mathbb{V}\)</span> decreases
+monotonically, namely <span class="math inline">\(\forall \mathcal{F}_i,
+\mathcal{F}_j \in \mathbb{V}, c(\mathcal{F}_i) \leq
+c(\mathcal{F}_j)\)</span>, if <span class="math inline">\(i \geq
+j\)</span>.</li>
+<li><strong>Significance</strong>: Each fragment <span
+class="math inline">\(\mathcal{F}\)</span> in <span
+class="math inline">\(\mathbb{V}\)</span> is a principal subgraph.</li>
+<li><strong>Completeness</strong>: For any principal subgraph <span
+class="math inline">\(\mathcal{S}\)</span> arising in the dataset, there
+always exists a fragment <span
+class="math inline">\(\mathcal{F}\)</span> in <span
+class="math inline">\(\mathbb{V}\)</span> satisfying <span
+class="math inline">\(\mathcal{S} \subseteq \mathcal{F}, c(\mathcal{S})
+= c(\mathcal{F})\)</span>, when <span
+class="math inline">\(\mathbb{V}\)</span> has collected all fragments
+with frequency no less than <span
+class="math inline">\(c(\mathcal{S})\)</span>.</li>
+</ul>
+<p>These conclusions are interesting and valuable. Monotonicity ensures
+that the subgraphs with higher frequencies are always extracted before
+those with lower frequencies. This is important because subgraphs with
+higher frequencies are more likely to reflect the frequent patterns and
+should be included into the vocabulary earlier. Significance indicates
+that each extracted subgraph is a principal subgraph that basically
+represents the “largest” repetitive pattern in size within the data.
+Completeness means our algorithm is expressive enough to represent (at
+least contain) any potential principal subgraph. For proof of these
+conclusions, please refer to our paper.</p>
+<p>Let's take a look back at the example of toy dataset. Even if the
+previously mentioned ambiguity happened and the 3rd and 4th carbons are
+merged in the third molecule, the final vocabulary will include a
+fragment which equals to or contains <span
+class="math inline">\(\texttt{C=CC}\)</span>, which is ensured by the
+<strong>Completeness</strong>. Specifically, in this case the <span
+class="math inline">\(\texttt{C=CC}\)</span> will still be
+extracted.</p>
+<p>We provide some PS from the vocabulary constructed from ZINC250K and
+visualize them below. We found the constructed vocabulary really
+captures patterns in the dataset.</p>
+<p><img src="ps.png" style="zoom:50%"></p>
+<h3 id="subgraph-level-decomposition">Subgraph-level Decomposition</h3>
+<p>Now we have defined principal subgraph and proposed an efficient
+algorithm to extract them. The only remaining question is that how do we
+represent a molecule with the constructed vocabulary. By saying
+"represent a molecule" we mean decompose the molecule into the subgraphs
+in the given vocabulary. A <em>decomposition</em> of a molecule <span
+class="math inline">\(\mathcal{G}\)</span> is derived as a set of
+non-overlapped subgraphs <span
+class="math inline">\(\{\mathcal{S}_i\}_i^n\)</span> and the edges
+connecting them <span
+class="math inline">\(\{\mathcal{E}_{ij}\}_{i,j}^{n,n}\)</span>, if
+<span class="math inline">\(\mathcal{G}=(\bigcup_i^n \mathcal{S}_i)
+\bigcup (\bigcup_{i,j}^{n,n}\mathcal{E}_{ij})\)</span> and <span
+class="math inline">\(\mathcal{S}_i\cap\mathcal{S}_j=\emptyset\)</span>
+for any <span class="math inline">\(i\neq j\)</span>. One important
+merit of our algorithm is that it can be <strong>reused</strong> for
+subgraph-level decomposition! For example, in figure (c) of the above
+example, when the algorithm stops, all the molecules in the dataset are
+already decomposed into subgraphs in the vocabulary (e.g. <span
+class="math inline">\(\texttt{C=CC=C}\)</span> now consists of two
+connected nodes, <span class="math inline">\(\texttt{C=CC}\)</span> and
+<span class="math inline">\(\texttt{C}\)</span>). For an arbitrary
+molecule outside the dataset, we can also decompose it following the the
+same procedure as the extraction, except that in the
+<strong>Update</strong> stage the frequencies are obtained from those
+recorded in the vocabulary.</p>
+<h2 id="two-step-generation">Two-step Generation</h2>
+<p>With the vocabulary of subgraphs, we generate molecules in two steps:
+first predicting which subgraphs should be selected and than assembling
+them globally. We use VAE-based generation framework and the overview of
+our model is depicted in the figure below:</p>
+<p><img src="model.png" style="zoom:50%"></p>
+<p>The encoding of molecular graphs into latent variables can be
+obtained by an arbitrary graph neural network. We use GIN (<a
+href="https://arxiv.org/abs/1810.00826">Xu et al. 2019</a>) in our
+paper. We want to emphasize that the subgraph-level information is
+integrated into the model by adding a fragment embedding to the atom
+nodes according to which subgraph they are in. Since the vocabulary
+consists of principal subgraphs in our paper, we name this generation
+framework as <em>PS-VAE</em>.</p>
+<h3 id="generation-of-subgraphs">Generation of Subgraphs</h3>
+<p>Given a latent variable variable <span
+class="math inline">\(\mathbf{z}\)</span>, we first utilize an
+autoregressive sequence generation model (i.e. GRU in our paper) to
+decode a sequence of fragments <span
+class="math inline">\([\mathcal{F}_1, ..., \mathcal{F}_n]\)</span>. The
+fragment set is should not be ordered, therefore we shuffle the set
+during training to let our model learn the permutation invariance.
+Similar to the conventions in Natural Language Processing, we insert two
+special tokens "<span class="math inline">\(\langle \texttt{start}
+\rangle\)</span>" and "<span class="math inline">\(\langle \texttt{end}
+\rangle\)</span>" at the begin and the end of the fragment sequence.
+During the inference stage, the sequence model stops generation when a
+"<span class="math inline">\(\langle \texttt{end} \rangle\)</span>" is
+generated.</p>
+<h3 id="global-assembling-of-subgraphs">Global Assembling of
+Subgraphs</h3>
+<p>The generated fragment set can be seen as a disconnected molecular
+graph where bonds between the subgraphs are missing. We formalize bond
+completion as a link prediction task which is familiar to the GNN
+community. Specifically, we implement message passing on the atom-level
+incomplete graph. Then, given node <span
+class="math inline">\(v\)</span> and <span
+class="math inline">\(u\)</span> in two different subgraphs, we predict
+the bonc between the two atoms as follows: <span class="math display">\[
+P(e_{uv}|\mathbf{z}) = H_\theta([\mathbf{h}_v;\mathbf{h}_u;\mathbf{z}])
+\]</span> where <span class="math inline">\(H_\theta\)</span> is a
+3-layer MLP with ReLU activation and <span
+class="math inline">\(\mathbf{h}_{u/v}\)</span> is the node embedding of
+<span class="math inline">\(u/v\)</span> after message passing. We add a
+special type "<span class="math inline">\(\langle \texttt{none}
+\rangle\)</span>" to indicate there is no bond between the two atoms.
+During training, we use negative sampling to balance the ratio of none
+bond and other bonds. During inference, we first sort the predicted edge
+in descending order in terms of <span
+class="math inline">\(P(e_{uv})|\mathbf{z}\)</span>, then we try to add
+them into the graph in turn. Those edges which will induce violation of
+valency rules will be dropped. Finally we find the maximal connected
+component as the final results.</p>
+<p>We visualize some generated molecules below:</p>
+<p><img src="molecules.png" style="zoom:100%"></p>
+<h2 id="property-optimization">Property Optimization</h2>
+<p>In real scenarios concerning molecule generation, we usually need to
+generate molecules with optimized properties. We consider the setting
+where the property score can be given by some black-box scorers (e.g.
+computational methods, efficient wetlab methods, ...). We first train a
+predictor on the latent space of our PS-VAE to simulate the given
+scorers. Then we perform gradient ascending on the latent space to
+search for an optimized latent variable that gives high predicted
+property score, which shows promise for decoding into an optimized
+molecule. We conduct experiments on two widely used properties:
+Penalized logP and QED:</p>
+<p><img src="prop_opt.png" style="zoom:50%"></p>
+<p>Please refer to our paper for more experimental results and detailed
+descriptions.</p>
+<h2 id="analysis">Analysis</h2>
+<h3 id="proper-size-of-vocabulary">Proper Size of Vocabulary</h3>
+<p>A larger <span class="math inline">\(N\)</span> (i.e. larger steps
+before the algorithm ends) in the principal subgraph extraction process
+leads to an increase in the number of atoms in extracted fragments and a
+decrease in their frequency of occurrence, as illustrated in the 2nd and
+3rd figure below. These two factors affect model performance in opposite
+ways. On the one hand, the entropy of the dataset decreases with more
+coarse-grained decomposition, which benefits model learning. On the
+other hand, the sparsity problem worsens as the frequency of fragments
+decreases, which hurts model learning. Intuitively, there must be an
+optimal point to balance these two factors. We propose a quantified
+method to balance entropy and sparsity. The entropy of the dataset given
+a set of fragments <span class="math inline">\(\mathbb{V}\)</span> is
+defined by the sum of the entropy of each fragment normalized by the
+average number of atoms: <span class="math display">\[
+H_{\mathbb{V}} = - \frac{1}{n_\mathbb{V}}\sum_{\mathcal{F} \in
+\mathbb{V}} P(\mathcal{F})\log P(\mathcal{F}),
+\]</span> where <span class="math inline">\(P(\mathcal{F})\)</span> is
+the relative frequency of fragment <span
+class="math inline">\(\mathcal{F}\)</span> in the dataset and <span
+class="math inline">\(n_{\mathbb{V}}\)</span> is the average number of
+atoms of fragments in <span class="math inline">\(\mathbb{V}\)</span>.
+The sparsity of <span class="math inline">\(\mathbb{V}\)</span> is
+defined as the reciprocal of the average frequency of fragments <span
+class="math inline">\(f_{\mathbb{V}}\)</span> normalized by the size of
+the dataset <span class="math inline">\(M\)</span>: <span
+class="math inline">\(S_{\mathbb{V}} = M / f_{\mathbb{V}}\)</span>. Then
+the entropy - sparsity trade-off (<span
+class="math inline">\(T\)</span>) can be expressed as: <span
+class="math inline">\(T_\mathbb{V} = H_\mathbb{V} + \gamma
+S_\mathbb{V}\)</span>, where <span class="math inline">\(\gamma\)</span>
+balances the impacts of entropy and sparsity since the impacts vary
+across different tasks. We assume that <span
+class="math inline">\(T_\mathbb{V}\)</span> negatively correlates with
+downstream tasks. Given a task, we first sample several values of <span
+class="math inline">\(N\)</span> to calculate their values of <span
+class="math inline">\(T\)</span> and then compute the <span
+class="math inline">\(\gamma\)</span> that minimize the Pearson
+correlation coefficient between <span class="math inline">\(T\)</span>
+and the corresponding performance on the task. In this way, we can
+locate a proper <span class="math inline">\(N\)</span> given any
+downstream tasks without burdensome tuning on the parameter. For
+example, the optimal <span class="math inline">\(\gamma\)</span> of the
+PlogP optimization task produce a Pearson correlation lower than -0.9,
+indicating strong negative correlation. The curve of the trade-off is
+depicted in the first figure below, which shows the optimal <span
+class="math inline">\(N\)</span> is approximately within the range [200,
+300]. We have actually run the experiments with <span
+class="math inline">\(N=100, 300, 500, 700\)</span> and found that <span
+class="math inline">\(N=300\)</span> gives the best results.</p>
+<p><img src="proper_size.png" style="zoom:100%"></p>
+<h3
+id="correlations-between-principal-subgraphs-and-properties">Correlations
+Between Principal Subgraphs and Properties</h3>
+<p>We may also wonder whether there truely exists correlations between
+the extracted PS and molecular properties, and whether PS-VAE can
+discover and utilize them. To analyze this, we present the normalized
+distribution of generated fragments and Pearson correlation coefficient
+between the fragments and Penalized logP (PlogP) in the figure
+below:</p>
+<p><img src="corr.png" style="zoom:100%"></p>
+<p>By saying "normalized distribution" we mean the frequencies of each
+fragment is divided by their frequencies in the dataset. Therefore, in
+non-optimization settings, it is expected that each fragment has a
+normalized frequency of 1 because our model is supposed to fit the
+distribution of the dataset. This is indeed observed in the figure,
+where the blue bins are approximately of the same height indicating a
+frequency of 1. Compared with the flat distribution under the
+non-optimization setting, the generated distribution shifts towards the
+fragments positively correlated with PlogP under the PlogP-optimization
+setting. The generation of fragments negatively correlated with PlogP is
+also suppressed. Therefore, we can draw the conclusion that correlations
+exist between fragments and PlogP, and our model can accurately discover
+and utilize these correlations.</p>
+<h2 id="discussion">Discussion</h2>
+<p>Though we have conducted extensive experiments to validate the
+efficacy of principal subgraphs, they are still preliminary attempts. We
+think there are a lot more domains that can utilize principal subgraphs
+for enhancement, as well as more efforts to improve the extraction
+algorithm. For example, currently the subgraph-level decomposition of
+molecules are merely implemented on the nodes. If we can also upgrade
+the edges to subgraph-level, it is possible to upgrade all atom-level
+models to their subgraph-level counterparts with only replacement of the
+vocabulary. Further, domains like pretraining or property prediction on
+the molecules may also extract abundant information from the
+subgraph-level representations of molecules. To conclude, we think our
+work provides insights into the selection of subgraphs on molecular
+representations and can inspire further search in this direction.</p>
+<h2 id="contact">Contact</h2>
+<p>For further discussion, please contact <strong>Xiangzhe Kong</strong>
+(jackie_kxz@outlook.com)</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/generation/" rel="tag"># generation</a>
+              <a href="/tags/molecule/" rel="tag"># molecule</a>
+              <a href="/tags/subgraph/" rel="tag"># subgraph</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/06/21/DDIM/" rel="prev" title="DDIM与最优逆向过程方差">
+      <i class="fa fa-chevron-left"></i> DDIM与最优逆向过程方差
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/09/NeuralODE/" rel="next" title="Neural ODEs">
+      Neural ODEs <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

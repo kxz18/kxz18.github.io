@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="​ netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究 PPPoE 网络协议的实验，需要有一个 server 和一个 client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和 Windows 本身不共用网络层，因此可以一个当 server，一个当 client，但我只有一台 Linux 电脑，所以就需要用 netns 建立">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux Network Namespace(netns)使用——以PPPoE实验为例">
+<meta property="og:url" content="https://kxz18.github.io/2020/09/14/Netns/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="​ netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究 PPPoE 网络协议的实验，需要有一个 server 和一个 client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和 Windows 本身不共用网络层，因此可以一个当 server，一个当 client，但我只有一台 Linux 电脑，所以就需要用 netns 建立">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/14/Netns/all.png">
+<meta property="article:published_time" content="2020-09-14T12:25:37.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.238Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="netns">
+<meta property="article:tag" content="PPPoE">
+<meta property="article:tag" content="tcpdump">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2020/09/14/Netns/all.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2020/09/14/Netns/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Linux Network Namespace(netns)使用——以PPPoE实验为例 | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一netns-使用"><span class="nav-text">一、netns 使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二pppoe"><span class="nav-text">二、PPPoE</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#server-搭建"><span class="nav-text">1. server 搭建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#client-搭建"><span class="nav-text">2. client 搭建</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三使用-tcpdump-抓包"><span class="nav-text">三、使用 tcpdump 抓包</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2020/09/14/Netns/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux Network Namespace(netns)使用——以PPPoE实验为例
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-09-14 20:25:37" itemprop="dateCreated datePublished" datetime="2020-09-14T20:25:37+08:00">2020-09-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux/" itemprop="url" rel="index"><span itemprop="name">Linux</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2020/09/14/Netns/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2020/09/14/Netns/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>​
+netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究
+PPPoE 网络协议的实验，需要有一个 server 和一个
+client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和
+Windows 本身不共用网络层，因此可以一个当 server，一个当
+client，但我只有一台 Linux 电脑，所以就需要用 netns
+建立隔离的网络栈来模拟两台电脑。<a id="more"></a></p>
+<h2 id="一netns-使用">一、netns 使用</h2>
+<p>netns 的使用是需要 sudo 权限的，且是 ip
+系列的指令，因此相关指令的前缀都为 <code>sudo ip netns</code>。</p>
+<p>增加一个网络空间的指令为<code>add</code>，后接网络名称，在这里创建两个网络空间，一个为<code>net0</code>，一个为<code>net1</code>，分别用于
+PPPoE 的 server 和 client
+搭建（之后如果想删除的话只需要用<code>del</code>指令即可）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns add net0</span><br><span class="line">sudo ip netns add net1</span><br></pre></td></tr></table></figure>
+<p>使用<code>ls</code>或<code>show</code>指令查看网络空间，确认两个网络空间已经建立：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns ls</span><br><span class="line"><span class="comment"># 输出应为：</span></span><br><span class="line"><span class="comment"># net0</span></span><br><span class="line"><span class="comment"># net1</span></span><br></pre></td></tr></table></figure>
+<p>如果想在某个特定的网络空间下运行指令，只需要给前缀<code>sudo ip netns exec name</code>即可，想在<code>net0</code>
+空间中运行 <code>ip addr</code> 指令，只需要：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip addr</span><br></pre></td></tr></table></figure>
+<p>新建立的网络命名空间的 loopback 接口是默认关闭的（在
+<code>ip addr</code>
+中可以看到接口<code>lo</code>的状态是<strong>DOWN</strong>），如果需要打开，使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># ip link set xxx up 是打开接口 xxx</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> lo up</span><br></pre></td></tr></table></figure>
+<p>此时两个网络空间之间无法互相通信，需要有一根虚拟网线连接两个网络空间。这根虚拟网线就是
+<strong>veth</strong> (virtual ethernet)。veth
+总是成对出现的（相当于网线的两头），因此创建时是两个同时创建。使用<code>ip link</code>系列的<code>add</code>指令进行创建（同样，要删除只需要<code>ip link del dev xxx</code>）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 默认名字为 veth0 和 veth0</span></span><br><span class="line">sudo ip link add <span class="built_in">type</span> veth</span><br><span class="line"><span class="comment"># 或者也可以用自定义名字的方式：</span></span><br><span class="line"><span class="comment"># sudo ip link add name veth0 type veth peer name veth1</span></span><br></pre></td></tr></table></figure>
+<p>此时用<code>ip addr</code>指令应该可以看到这两个接口。接下来需要将两个接口分别绑定到两个网络空间：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo ip link <span class="built_in">set</span> veth0 netns net0</span><br><span class="line">sudo ip link <span class="built_in">set</span> veth1 netns net1</span><br></pre></td></tr></table></figure>
+<p>这样虚拟网线的两端就绑定到两个网络空间了。但是此时两个网络之间还是不能通信，因为veth端口还没有打开，且还没有分配IP地址，因此要打开接口并分配地址：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 打开接口</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> veth0 up</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip link <span class="built_in">set</span> veth1 up</span><br><span class="line"><span class="comment"># 分配 IP 地址，这里以 192.168.0.2/24 和 192.168.0.3/24 为例(/24是子网掩码)</span></span><br><span class="line"><span class="comment"># ip a 是 ip addr 的缩写</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip a add 192.168.0.2/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip a add 192.168.0.3/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>分配好之后还需要手动配置路由，否则无法互相找到，使用<code>ip r</code>指令(是<code>ip route</code>的缩写)</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 表示所有192.168.0.x的地址都通过veth0和veth1寻找</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip r add 192.168.0.0/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip r add 192.168.0.0/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>这样两个子网就可以互相ping通了，即可以互相通信了：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ping 192.168.0.3 <span class="comment"># 从net0 ping net1</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ping 192.168.0.2 <span class="comment"># 从net1 ping net0</span></span><br></pre></td></tr></table></figure>
+<p>至此两个互相能通信的子网已经建立。</p>
+<h2 id="二pppoe">二、PPPoE</h2>
+<h3 id="server-搭建">1. server 搭建</h3>
+<p>安装 PPPoE server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install pppoe</span><br></pre></td></tr></table></figure>
+<p>通过<code>vim /etc/ppp/options</code> 编辑 PPPoE 的配置文件并删除
+<code>#+chap</code> 行首的注释符 <code>#</code>。</p>
+<p>通过 <code>vim /etc/ppp/pppoe-server-options</code> 进行 server
+的配置，写入：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">require-chap</span><br><span class="line">lcp-echo-interval 60</span><br><span class="line">lcp-echo-failure 5</span><br><span class="line">logfile &#x2F;var&#x2F;log&#x2F;pppd.log</span><br></pre></td></tr></table></figure>
+<p>通过 <code>vim /etc/ppp/chap-secrets</code> 编辑 server
+端认证的帐号密码，在最后一行加入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">test</span> * 123456 *  <span class="comment"># client/server/secret/IP address</span></span><br></pre></td></tr></table></figure>
+<p>这里注意，因为本实验中 server 和 client
+其实是同一台机器模拟的两个网络空间，即配置文件是共用的，因此在配置客户端的时候可能会把服务端的配置覆盖，需要配置完客户端后重新回来把被覆盖的部分加上。</p>
+<p>之后启动server即可（注意在 net0 空间中启动）</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -I 后跟的是使用的interface，选择和 net1 连接的 veth0，-L 指定server在子网中的地址，-R指定接入client的地址分配的起始点，-N指定允许的最多client</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 sudo pppoe-server -I veth0 -L 10.0.0.1 -R 10.0.0.2 -N</span><br><span class="line">20</span><br></pre></td></tr></table></figure>
+<h3 id="client-搭建">2. client 搭建</h3>
+<p>安装pppoeconf：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install pppoeconf</span><br></pre></td></tr></table></figure>
+<p>在子网<code>net1</code>中运行pppoeconf，并且指定使用<code>veth1</code>接口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 pppoeconf veth1</span><br></pre></td></tr></table></figure>
+<p>按顺序：popular
+options，选否；用户名，删掉默认的username，输入test；密码，输入123456；User
+peer DNS，选是；Limited MSS Problem，选是；Start connection at boot
+time，否；Establish a Connection，否。</p>
+<p>此时pppoeconf应该覆盖了原先server端的<code>chap-secrets</code>，需要把<code>test * 123456 *</code>
+重新加回配置文件。</p>
+<p>更改结束后如果需要开启client连接，只需要在net1网络空间下运行<code>sudo pon dsl-provider</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>查看状态可以使用<code>sudo plog</code>，关闭连接可以用<code>sudo poff</code></p>
+<h2 id="三使用-tcpdump-抓包">三、使用 tcpdump 抓包</h2>
+<p>我们需要在运行<code>pon dsl-provider</code>之前开启抓包，这样就能得到客户端进行连接时和server进行的交互信息。在客户端抓包还是在服务端抓包是一样的，只是发送的和接收的相反而已。在客户端抓包：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># -i 为选择监听的 interface，-v 为 verbose（显示详细信息），-n 为不翻译地址（即不用dns翻译，可以加快速度），-w 为设置数据存储路径（存为pcap文件，可以用wireshark进行分析）</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 tcpdump -i veth1 -vn -w packet.cap</span><br></pre></td></tr></table></figure>
+<p>此时已经tcpdump已经开始监听 net1 的 veth1
+了，之后所有通过这个接口发送的包都会被存下来，此时再开始连接过程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>连接完成后再关闭监听，此时所有连接过程的包都已经被保存到<strong>packet.cap</strong>文件中了，使用<strong>wireshark</strong>打开即可得到PPPoE各阶段的报文：</p>
+<figure>
+<img src="all.png" alt="all" />
+<figcaption aria-hidden="true">all</figcaption>
+</figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/netns/" rel="tag"># netns</a>
+              <a href="/tags/PPPoE/" rel="tag"># PPPoE</a>
+              <a href="/tags/tcpdump/" rel="tag"># tcpdump</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/09/09/Minecraft/" rel="prev" title="Minecraft Java版服务器搭建（Linux）与客户端连接">
+      <i class="fa fa-chevron-left"></i> Minecraft Java版服务器搭建（Linux）与客户端连接
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/11/12/Wechat/" rel="next" title="Linux 下使用 Wine 安装 windows 版的微信">
+      Linux 下使用 Wine 安装 windows 版的微信 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

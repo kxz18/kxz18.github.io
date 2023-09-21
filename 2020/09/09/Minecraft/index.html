@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用 java 版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给 mojang 氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用 Linux 建的服务器，那完全可以用 ssh 端口转发的方式把远端服务器加进局域网（实际是加到127.0.0">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minecraft Java版服务器搭建（Linux）与客户端连接">
+<meta property="og:url" content="https://kxz18.github.io/2020/09/09/Minecraft/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用 java 版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给 mojang 氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用 Linux 建的服务器，那完全可以用 ssh 端口转发的方式把远端服务器加进局域网（实际是加到127.0.0">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/serverjar.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/sakura.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/tutorial.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/tunnel.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/launcher.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/java.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/javaall.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/java64.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/hmclgithub.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/adduser.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/enterinstall.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/versionselect.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/install.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/testgame.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/64check.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/source.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/mul.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/addserver.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/serversetting.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/09/09/Minecraft/user.png">
+<meta property="article:published_time" content="2020-09-09T15:37:04.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.210Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="Minecraft">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2020/09/09/Minecraft/serverjar.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2020/09/09/Minecraft/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Minecraft Java版服务器搭建（Linux）与客户端连接 | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一服务端搭建linux"><span class="nav-text">一、服务端搭建（Linux）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#建立-java-运行环境"><span class="nav-text">1. 建立 java 运行环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#下载服务器-jar-文件"><span class="nav-text">2. 下载服务器 jar 文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#启动服务器"><span class="nav-text">3. 启动服务器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#进行内网穿透"><span class="nav-text">4. 进行内网穿透</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#原理"><span class="nav-text">原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#使用sakura-frp进行内网穿透"><span class="nav-text">使用sakura frp进行内网穿透</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#服务器性能优化可选"><span class="nav-text">5. 服务器性能优化（可选）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#服务器配置优化server.properties"><span class="nav-text">服务器配置优化（server.properties）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#jvm-启动参数优化"><span class="nav-text">JVM 启动参数优化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#使用第三方开发的服务端"><span class="nav-text">使用第三方开发的服务端</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#选择一使用-papermc-建立服务端"><span class="nav-text">选择一：使用 PaperMC
+建立服务端</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#选择二使用-fabric-搭建服务端加入优化-mod"><span class="nav-text">选择二：使用 fabric
+搭建服务端加入优化 MOD</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#推荐"><span class="nav-text">推荐</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二客户端连接"><span class="nav-text">二、客户端连接</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#安装-java-re-环境"><span class="nav-text">0. 安装 Java RE 环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#安装启动器hmcl"><span class="nav-text">1. 安装启动器：HMCL</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#安装游戏本体"><span class="nav-text">2. 安装游戏本体</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#连接服务器"><span class="nav-text">3. 连接服务器</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#直接连接私人服务器"><span class="nav-text">直接连接私人服务器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#offline-模式的另一种连接方式"><span class="nav-text">offline 模式的另一种连接方式</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#下载-ssh-软件putty"><span class="nav-text">下载 ssh 软件（putty）</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2020/09/09/Minecraft/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minecraft Java版服务器搭建（Linux）与客户端连接
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-09-09 23:37:04" itemprop="dateCreated datePublished" datetime="2020-09-09T23:37:04+08:00">2020-09-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%B8%B8%E6%88%8F/" itemprop="url" rel="index"><span itemprop="name">游戏</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2020/09/09/Minecraft/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2020/09/09/Minecraft/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用
+java
+版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给
+mojang
+氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用
+Linux 建的服务器，那完全可以用 ssh
+端口转发的方式把远端服务器加进局域网（实际是加到127.0.0.1），尝试了一下果然成功了！但成功以后发现原来其实offline模式也是可以连私人服务器的。。。anyway记录一下整个过程！<a id="more"></a></p>
+<h2 id="一服务端搭建linux">一、服务端搭建（Linux）</h2>
+<p>在配置之前需要准备一台装有Linux系统的服务器，可以是自己的破旧电脑改装的，也可以是VPS。</p>
+<h3 id="建立-java-运行环境">1. 建立 java 运行环境</h3>
+<p>如果是 ubuntu 系统，只需要安装默认的 java runtime environment （java
+re）即可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install default-jre</span><br></pre></td></tr></table></figure>
+<p>其他 Linux 发行版用各自对应的包管理器安装即可。或者按照 java 的<a
+href="https://www.java.com/zh_CN/">官方网站</a>提供的教程进行安装</p>
+<h3 id="下载服务器-jar-文件">2. 下载服务器 jar 文件</h3>
+<p>可以在这个网站：<a
+href="https://mcversions.net/">https://mcversions.net/</a>
+找到各个版本的服务端 jar 文件。注意下载的时候要选择“server
+jar“。如果在远程服务器上下载，可以复制下载链接以后用
+<code>wget</code>、<code>aria2c</code> 等命令行下载器进行下载。</p>
+<p><img src="serverjar.png" alt="serverjar" style="zoom:36%;" /></p>
+<p>下载后的文件名为”server.jar“</p>
+<h3 id="启动服务器">3. 启动服务器</h3>
+<p>先进入服务器jar文件所在的目录。</p>
+<p>第一步是进行初始化：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar server.jar --initSettings</span><br></pre></td></tr></table></figure>
+<p>这步会自动创建初始的 <strong>server.properties</strong>
+配置文件以及协议文件
+<strong>eula.txt</strong>。前者存储的是服务端世界的基本配置，大致如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line">#Minecraft server properties</span><br><span class="line">spawn-protection&#x3D;16</span><br><span class="line">max-tick-time&#x3D;60000</span><br><span class="line">query.port&#x3D;25565</span><br><span class="line">generator-settings&#x3D;</span><br><span class="line">sync-chunk-writes&#x3D;true</span><br><span class="line">force-gamemode&#x3D;false</span><br><span class="line">allow-nether&#x3D;true</span><br><span class="line">enforce-whitelist&#x3D;false</span><br><span class="line">gamemode&#x3D;survival</span><br><span class="line">broadcast-console-to-ops&#x3D;true</span><br><span class="line">enable-query&#x3D;false</span><br><span class="line">player-idle-timeout&#x3D;0</span><br><span class="line">difficulty&#x3D;easy</span><br><span class="line">spawn-monsters&#x3D;true</span><br><span class="line">broadcast-rcon-to-ops&#x3D;true</span><br><span class="line">op-permission-level&#x3D;4</span><br><span class="line">pvp&#x3D;true</span><br><span class="line">entity-broadcast-range-percentage&#x3D;100</span><br><span class="line">snooper-enabled&#x3D;true</span><br><span class="line">level-type&#x3D;default</span><br><span class="line">hardcore&#x3D;false</span><br><span class="line">enable-status&#x3D;true</span><br><span class="line">enable-command-block&#x3D;false</span><br><span class="line">max-players&#x3D;20</span><br><span class="line">network-compression-threshold&#x3D;256</span><br><span class="line">resource-pack-sha1&#x3D;</span><br><span class="line">max-world-size&#x3D;29999984</span><br><span class="line">function-permission-level&#x3D;2</span><br><span class="line">rcon.port&#x3D;25575</span><br><span class="line">server-port&#x3D;25565</span><br><span class="line">server-ip&#x3D;</span><br><span class="line">spawn-npcs&#x3D;true</span><br><span class="line">allow-flight&#x3D;false</span><br><span class="line">level-name&#x3D;world</span><br><span class="line">view-distance&#x3D;10</span><br><span class="line">resource-pack&#x3D;</span><br><span class="line">spawn-animals&#x3D;true</span><br><span class="line">white-list&#x3D;false</span><br><span class="line">rcon.password&#x3D;</span><br><span class="line">generate-structures&#x3D;true</span><br><span class="line">online-mode&#x3D;true</span><br><span class="line">max-build-height&#x3D;256</span><br><span class="line">level-seed&#x3D;</span><br><span class="line">prevent-proxy-connections&#x3D;false</span><br><span class="line">use-native-transport&#x3D;true</span><br><span class="line">enable-jmx-monitoring&#x3D;false</span><br><span class="line">motd&#x3D;A Minecraft Server</span><br><span class="line">rate-limit&#x3D;0</span><br><span class="line">enable-rcon&#x3D;false</span><br></pre></td></tr></table></figure>
+<p>如果想要详细的解释可以参考 mc 的 wiki： <a
+href="https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh">https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh</a>。</p>
+<p>后者是使用者需要遵守的一系列规则，看完（直接跳到最后）以后要输入<strong>"eula=true"</strong>表示同意遵守这些规则。</p>
+<p>第二步就是启动服务器了，最后的参数<code>-nogui</code>是不需要跳出图形界面的意思：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -Xms512M -Xmx1024M -jar server.jar -nogui</span><br></pre></td></tr></table></figure>
+<p>此时如果想关掉终端还能让服务器开着，可以使用 <strong>screen</strong>
+软件。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install screen</span><br></pre></td></tr></table></figure>
+<p>安装完成后开启一个给 mc 的 session：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">screen -S mc_server <span class="comment"># mc_server是这个session的名字，可以自定义</span></span><br></pre></td></tr></table></figure>
+<p>在新跳出的窗口中重新运行第二步启动服务器的命令即可。要跳出这个窗口默认的按键是<code>Ctrl+A+D</code>，想再回到这个session对服务器的状态进行查看则需要<code>screen -r mc_server</code>即可。如果想对screen的使用进行个性化配置的话可以自行搜索一下。screen的使用方法这里只介绍三个最常用的：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">screen -S session_name	<span class="comment"># 开起名为session_name的session</span></span><br><span class="line">screen -r session_name	<span class="comment"># 从detached状态恢复名为session_name的session</span></span><br><span class="line">screen -list			<span class="comment"># 列出当前所有session</span></span><br></pre></td></tr></table></figure>
+<p>如果想对服务器进行命令交互可以先输入 <strong>help</strong>
+获取帮助，再从中选取自己需要的指令进行交互。例如停止服务器的指令是<code>\stop</code></p>
+<h3 id="进行内网穿透">4. 进行内网穿透</h3>
+<h4 id="原理">原理</h4>
+<p>如果服务器没有公网IP，例如是用家中废旧电脑搭建的服务器，因为是在运营商给的入网点，肯定是内网IP，此时直接靠IP就不能让别人访问到服务器，因此需要进行内网穿透。公网IP是很少的，除了网上租用VPS会给公网IP外，其他渠道连入互联网几乎都是内网IP（平时常见的192.168.x.x的就是路由器给的局域网中的IP）。总之内网IP是不能被外界直接访问的，只有公网IP才可以。</p>
+<p>内网穿透的原理就是处于内网中的服务器的一个端口映射到一个公网IP，这样访问那个公网IP的数据都会被转发到服务器的127.0.0.1，相当于直接从127.0.0.1访问服务器了。这个过程需要有一个具有公网IP的主机进行数据的转发才能进行，很幸运已经有提供这样的服务的人了。</p>
+<h4 id="使用sakura-frp进行内网穿透">使用sakura frp进行内网穿透</h4>
+<p><a href="https://www.natfrp.com/" target="_blank" rel="noopener">sakura frp</a>
+提供一定额度的内网穿透流量，而且可以通过每日签到增加流量，如果服务器加入的人不是太多的话，一般都是够用的。首先进入网站主页：<a
+href="https://www.natfrp.com/">https://www.natfrp.com/</a>，注册+登录。</p>
+<p><img src="sakura.png" alt="sakura" style="zoom:75%;" /></p>
+<p>登录进去后发现其实因为有很多人用这个软件都是为了建 Minecraft
+的服务器，所以网站已经有现成的为建 MC
+服务器而进行内网穿透的教程了，可以选择直接看它的教程。</p>
+<p><img src="tutorial.png" alt="tutorial" style="zoom:50%;" /></p>
+<p>基本思路就是先在左侧列表中 <strong>内网穿透</strong> -&gt;
+<strong>创建隧道</strong>
+处进行隧道创建。服务器选择只要不是海外的基本都可以（海外的延迟太高了），隧道名称自定义，本地端口填你的
+mc
+服务器监听的端口，隧道类型要选TCP（和基岩版不一样，基岩版用的是udp方法），本地地址就用默认的127.0.0.1即可，远程端口可以填自己喜欢的，也可以空着自动生成（因为你喜欢的可能基本都被别人先抢了）。</p>
+<p><img src="tunnel.png" alt="tunnel" style="zoom:50%;" /></p>
+<p>创建完之后会跳出开启隧道的指令，先复制下来即可。然后去
+<strong>内网穿透</strong> -&gt; <strong>软件下载</strong>
+处选择适合自己系统（mc
+服务器所在的系统）的内网穿透客户端，按照网站主页提供的客户端使用教程开启隧道即可。</p>
+<p><img src="launcher.png" alt="launcher" style="zoom:50%;" /></p>
+<p>开启隧道后会告诉你公网的ip或者域名，此时用那个ip或域名加上之前填的远程端口的端口号就能对
+mc 服务器进行访问。</p>
+<h3 id="服务器性能优化可选">5. 服务器性能优化（可选）</h3>
+<p>有些时候可能开服的主机性能不是很好，但是又想和更多的小伙伴一起玩，这个时候为了尽量避免卡顿，就需要对服务器进行优化。</p>
+<h4
+id="服务器配置优化server.properties">服务器配置优化（server.properties）</h4>
+<ul>
+<li>view-distance 一栏表示的是所看的方向加载的 chunk 数量，默认是
+10，可以调到 6。如果人比较多甚至可以调到
+4。不过调太低会造成远方的地形看不清，可能会影响游戏体验。</li>
+<li>generate-structures
+一栏是指是否会加载已经被发现的地牢、神殿等特殊建筑，默认是
+true，随着这类建筑发现变多，可能会给服务器带来比较大的负担，因为明明没人在附近却还是要加载。所以可以设置成
+false。</li>
+<li>useSMPAPI 一项是是否使用多核，设置为 true
+开启多核模式。本项默认是不存在的，因此要自己添加
+<code>useSMPAPI=true</code></li>
+</ul>
+<h4 id="jvm-启动参数优化">JVM 启动参数优化</h4>
+<p>一组通用参数优化方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=<span class="literal">true</span> -jar paper-x.x.x.jar nogui</span><br></pre></td></tr></table></figure>
+<p>其中<code>-Xms</code> 指最小分配内存，<code>-Xmx</code>
+指最大分配内存，这两者根据主机性能不同需要自己设置，其他参数据作者说是在各种主机上都普适的。提出这些参数的原文地址是：<a
+href="https://aikar.co/category/minecraft/">https://aikar.co/category/minecraft/</a>。需要更具体的解释可以参考原文。尝试了一下优化效果确实还是很明显的。</p>
+<h4 id="使用第三方开发的服务端">使用第三方开发的服务端</h4>
+<h5 id="选择一使用-papermc-建立服务端">选择一：使用 PaperMC
+建立服务端</h5>
+<p>PaperMC也叫PaperSpigot，有对 mc
+的服务器进行专门的优化，可以使服务器性能大幅提升。Paper
+的说明文档在这里：<a
+href="https://paper.readthedocs.io/en/latest/server/index.html">https://paper.readthedocs.io/en/latest/server/index.html</a>，里面还是有比较详细的说明的。使用
+paper 的方式就是先下载 paper 的服务端：<a
+href="https://papermc.io/downloads">https://papermc.io/downloads</a>（paper的版本应该就对应服务端的版本，选择适合自己的版本）。然后直接启动即可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -jar paper-x.x.x.jar	<span class="comment"># Xms和Xmx根据自己主机的内存选择</span></span><br></pre></td></tr></table></figure>
+<p>如果想继承原来的存档，直接把之前 <strong>server.jar</strong>
+所在文件夹里的全部内容复制到 paper 服务器的目录下即可。不过 paper
+对于存档的存储方式和普通的服务器（称之为 Vanilla）有点微差。paper
+将地狱（nether）和末地（the
+end）的内容用额外创建世界的方式进行存储，而原版服务器则是存到
+<strong>world</strong> 文件夹下的 <strong>DIM-1</strong> 和
+<strong>DIM1</strong> 中。不过从Vanilla 转 paper
+的存储方式你无需做任何更改，复制进去以后首次运行 paper
+服务器它会<strong>自动进行转换</strong>。但是如果想<strong>从 paper
+再转回 Vanilla</strong>，则需要找到 <strong>world_nether</strong> 和
+<strong>world_the_end</strong> 文件夹，分别将里面的
+<strong>DIM-1</strong>， <strong>DIM1</strong> 文件夹复制到
+<strong>world</strong> 文件夹内。即文件树从上面这个变成下面这个：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">+-- world</span><br><span class="line">| 	+-- ...（其他文件）</span><br><span class="line">+-- wolrd_nether</span><br><span class="line">|   +-- DIM-1</span><br><span class="line">|   +-- ...（其他文件）</span><br><span class="line">+-- world_the_end</span><br><span class="line">|   +-- DIM1</span><br><span class="line">|   +-- ...（其他文件）</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">+-- world</span><br><span class="line">|	+-- DIM-1</span><br><span class="line">| 	+--	DIM1</span><br><span class="line">|	+-- ...（其他文件）</span><br></pre></td></tr></table></figure>
+<p>除此之外还需要注意的是 paper
+服务器默认关闭铁轨复制的特性，如果要打开需要编辑
+<strong>paper.yml</strong>，将里面的
+<strong>allow-piston-duplication</strong> 设置为
+<strong>true</strong>。在复制铁轨的时候你可能会觉得铁轨掉到地上就消失了，其实并没有，只是因为
+paper
+服务器默认开启了同类物品近距离合并，所以单个的铁轨都被合并到一个物品堆里了，看起来就像消失了一样。</p>
+<p>关于paper的其他参数的优化可以看<a
+href="https://ent.163.com/game/16/0129/14/BEGKSO4500314UFD.html">这篇文章</a>，里面有比较详细的介绍。</p>
+<h5 id="选择二使用-fabric-搭建服务端加入优化-mod">选择二：使用 fabric
+搭建服务端加入优化 MOD</h5>
+<p>准确来说fabric并不算第三方服务端，只是一个能为server加入 mod
+的集成工具链。fabric 搭建服务端可以加入 mod，而有很多 mod
+是专门为了优化游戏性能而存在的。</p>
+<p>首先需要去 fabric 官网下载 fabric 安装器。官网有给 mc server
+建立方法，详情在 <a
+href="https://fabricmc.net/use/?page=server">https://fabricmc.net/use/?page=server</a>。在写这篇文章的时候，fabric
+最新版本是 0.6.1.51，所以下载的方法为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wget -O fabric-installer-0.6.1.51.jar https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar <span class="comment"># wget 下载</span></span><br></pre></td></tr></table></figure>
+<p>或者使用curl下载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar -o fabric-installer-0.6.1.51.jar <span class="comment"># curl 下载</span></span><br></pre></td></tr></table></figure>
+<p>之后用安装器获取用于启动 mc server 的 fabric 启动器：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar fabric-installer-0.6.1.51.jar server -downloadMinecraft</span><br></pre></td></tr></table></figure>
+<p>其中的 <code>-downloadMinecraft</code> 是会自动下载最新的 mc server
+的 jar，也即前面步骤中的
+<strong>server.jar</strong>。由于下载速度可能非常慢，因此如果之前已经下好了
+server.jar，可以直接去掉这个参数，并把 server.jar
+复制到<strong>当前目录（fabric installer
+所在的目录）</strong>。指令完成后应该当前目录应该会多一个
+<strong>fabric-server-launcher.jar</strong>
+文件，以后启动服务器的指令就变为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar fabric-server-launcher.jar</span><br></pre></td></tr></table></figure>
+<p>如果之前已经用前面的方式玩过服务器了，想要继承存档的话只要把之前
+<strong>server.jar</strong> 所在的文件夹的内容都复制到当前目录即可。</p>
+<p>接下来就是加装 mod 了。装 mod 的方法很简单，就是把 mod
+下载下来放到当前目录的 <strong>mods</strong> 文件夹里即可。mod 可以在 <a
+href="https://www.curseforge.com/minecraft/mc-mods">https://www.curseforge.com/minecraft/mc-mods</a>
+中进行搜索下载。在每个 mod 页面点击右上的 <strong>Download</strong>
+即可下载 mod 的 jar 包。</p>
+<p>第一个是 lithium，通过优化 mc 的内部模块运行效率达到降低 mspt
+的目的，从而使游戏更流畅。链接为：<a
+href="https://www.curseforge.com/minecraft/mc-mods/lithium">https://www.curseforge.com/minecraft/mc-mods/lithium</a>。</p>
+<p>第二个是 phosphor，作用是通过优化光照来降低卡顿，链接为：<a
+href="https://www.curseforge.com/minecraft/mc-mods/phosphor">https://www.curseforge.com/minecraft/mc-mods/phosphor</a></p>
+<p>装载 mod 的时候需要注意的一点是有些 mod
+可能还没跟上版本更新，所以下载前先看一眼 mod
+的描述中支持的版本，否则可能会造成服务端无法运行的错误。</p>
+<p>将 mod 的 jar 包放入当前目录的 mods 文件夹中即可重启服务器了。</p>
+<h5 id="推荐">推荐</h5>
+<p>从我本身的体验上来看，似乎 fabric 这种方法不一定能提供加速，因为加装
+mod 会要求额外的内存空间，对于内存比较吃紧的主机来说，加速 mod
+反而可能是个负担。我的主机是 32 位 2 核 CPU，2G内存，用了 fabric
+之后感觉反而有点减速，而 PaperMC
+的确是有比较好的加速效果，所以还是比较推荐用 PaperMC
+来做服务端的优化，</p>
+<h2 id="二客户端连接">二、客户端连接</h2>
+<h3 id="安装-java-re-环境">0. 安装 Java RE 环境</h3>
+<p>对于 Linux 的用户，可以按照服务端搭建介绍中的方法安装 Java RE
+环境。</p>
+<p>对于 Windows 用户，进入 <a href="https://www.java.com/en/" target="_blank" rel="noopener">java 8
+的官方网站</a>，点击<strong>java download</strong></p>
+<p><img src="java.png" alt="java" style="zoom:50%;" /></p>
+<p>之后直接拉到网页底部，注意不要点直接下载，而是点击 See all java
+downloads。因为直接下载的话可能根据浏览器的版本给你下载 32-bit 的
+java。而 mc 用 64-bit 的会更好一点。</p>
+<p><img src="javaall.png" alt="javaall" style="zoom:50%;" /></p>
+<p>之后找到 windows 的部分，点击 64-bit
+的版本进行下载，按照安装器的指引进行安装即可。</p>
+<p><img src="java64.png" alt="java64" style="zoom:50%;" /></p>
+<h3 id="安装启动器hmcl">1. 安装启动器：HMCL</h3>
+<p>HMCL（Hello Minecraft Launcher）是第三方的 MC Java
+版启动器，因为版本管理+登录一应具全，而且界面比较美观，没有内置广告，所以使用体验较好。用别的启动器只要能进入游戏也是可以的。</p>
+<p>HMCL再官方的github上进行下载：<a
+href="https://github.com/huanghongxun/HMCL/releases">https://github.com/huanghongxun/HMCL/releases</a>
+。</p>
+<p><img src="hmclgithub.png" alt="github" style="zoom:50%;" /></p>
+<p>windows 用户点击 <strong>exe</strong>
+文件下载即可，下载后双击即可运行。Linux 用户可以选择
+<strong>jar</strong> 文件后用 <code>java -jar HMCL-x.x.xxx.jar</code>
+打开，也可以用自己的包管理器直接安装。例如我使用 Manjaro 发行版，再
+archlinux 库中有官方的 HMCL 启动器，我使用的包管理器是
+<strong>yay</strong>，直接 <code>yay hmcl</code> 即可。</p>
+<h3 id="安装游戏本体">2. 安装游戏本体</h3>
+<p>打开启动器后首先跳出创建用户的页面，选择离线模式，输入你喜欢的用户名即可。这个用户名之后在加入服务器进行游戏的时候会显示出来。当然，如果已经给
+mojang 氪过金了，有持有 MC java 版的 mojang
+账号，直接登录也是可以的。</p>
+<p><img src="adduser.png" alt="addusr" style="zoom:50%;" /></p>
+<p>之后点击最上方工具栏中的<strong>安装新游戏版本</strong>进行游戏本体的安装，选择<strong>和服务器一样的版本</strong>。</p>
+<p><img src="enterinstall.png" alt="enterinstall" style="zoom:50%;" /></p>
+<p><img src="versionselect.png" alt="versionselect" style="zoom:50%;" /></p>
+<p>下面这个界面应该是装一些插件的，没有需求的话都不安装即可。点击<strong>安装</strong>以后会自动进行相关文件的下载和安装，慢慢等待安装完成。</p>
+<p><img src="install.png" alt="install" style="zoom:50%;" /></p>
+<p>安装完成后到<strong>游戏列表</strong>界面，点击测试游戏，待成功加载之后，下次启动就可以直接用右下角的开始游戏了：</p>
+<p><img src="testgame.png" alt="testgame" style="zoom:50%;" /></p>
+<p>如果过程中出现无法下载的错误，一是在<strong>启动器设置</strong>里检查自己的java版本是否是64-bit的，二是把下载源换成官方的下载源：</p>
+<p><img src="64check.png" alt="64chek" style="zoom:50%;" /></p>
+<p><img src="source.png" alt="source" style="zoom:50%;" /></p>
+<p>注意如果想把 hmcl.exe 移到别的地方，需要把同级目录下的
+<strong>hmcl.json</strong> 和 <strong>.minecraft</strong>
+文件夹同时移出，前者是 hmcl 的配置文件，后者装的是游戏本体文件。</p>
+<h3 id="连接服务器">3. 连接服务器</h3>
+<h4 id="直接连接私人服务器">直接连接私人服务器</h4>
+<p>先进入 <strong>Multiplayer</strong> 界面：</p>
+<p><img src="mul.png" alt="mul" style="zoom:50%;" /></p>
+<p>然后点击 <strong>add server</strong>：</p>
+<p><img src="addserver.png" alt="addserver" style="zoom:50%;" /></p>
+<p>Server Name 中填写的是你给这个服务器取的名字，可以自定义，Server
+Address 的格式是 <strong>IP:端口</strong> 。如果端口是默认的 25565
+的话可以省略。IP 可以是网址，也可以是直接的Ipv4地址。</p>
+<p><img src="serversetting.png" alt="serversetting" style="zoom:50%;" /></p>
+<p>点击Done之后稍稍等待一下刷新就可以进服务器了！</p>
+<p>这里需要注意的是如果朋友中有人是offline模式进入服务器的话，服务端需要在
+server.properties 里将 <strong>online-mode</strong> 设置成
+<strong>false</strong>。这个选项是是否检查连入的人持有mojang账号，offline模式是没有登录的，所以自然没有mojang账号。</p>
+<h4 id="offline-模式的另一种连接方式">offline 模式的另一种连接方式</h4>
+<p>原理是先用一个 <strong>ssh</strong>
+软件进行端口转发，把本地的某个端口（例如25565）和服务端的端口连接起来（服务器默认端口号是
+25565，在<strong>server.properties</strong>里可以查看），这样向本地的
+25565 端口收发消息，就相当于是从服务端的 127.0.0.1
+收发消息，相当于把服务端加入了局域网。</p>
+<p>需要先在服务端为想连入的人创建一个统一的linux新用户：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo useradd -m mc	<span class="comment"># mc 为用户名，可以自定义</span></span><br><span class="line">sudo passwd mc		<span class="comment"># 为新用户设置密码</span></span><br></pre></td></tr></table></figure>
+<h5 id="下载-ssh-软件putty">下载 ssh 软件（putty）</h5>
+<p>最新的版本在
+https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+可以下载，找到 <strong>putty.exe</strong>，根据自己的电脑选择 64-bit 或
+32-bit 版本（一般电脑都是 64-bit 的）下载。</p>
+<p>开启软件后输入linux服务端的ip和端口。</p>
+<p><img src="user.png" alt="user" style="zoom:50%;" /></p>
+<p>然后再 SSH-&gt;Tunnels
+中MC的server运行的端口，然后点Open开启这个session，输入服务端给的用户名和密码即可。这样就完成的端口转发。如果再Linux上的话用
+<code>ssh</code> 指令即可完成，不需要多下载别的程序。</p>
+<p>之后的过程和前面的连接服务器的方式大致相同，不同点在于此时可以直接在
+local network 中搜索到服务端，如果要通过ip连接的话，需要用 127.0.0.1
+而不是服务端的 ip。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Minecraft/" rel="tag"># Minecraft</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/06/25/GNN/" rel="prev" title="GNN（二）：图神经网络——深层编码器、GCN、GAT">
+      <i class="fa fa-chevron-left"></i> GNN（二）：图神经网络——深层编码器、GCN、GAT
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/09/14/Netns/" rel="next" title="Linux Network Namespace(netns)使用——以PPPoE实验为例">
+      Linux Network Namespace(netns)使用——以PPPoE实验为例 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

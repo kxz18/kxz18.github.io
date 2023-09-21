@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="目前基于diffusion的生成模型已经逐渐从CV迁移到其他领域，并均展现出不错的效果。正好最近研究项目是生成式的任务，就想应该学习一下diffusion，说不定可以有不错的效果。打算分两篇文章对这个领域的基础知识进行记录，本篇先讲解最基础的diffusion model (Sohl-Dickstein et al., 2015)，再学习denoising diffusion probabilis">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基础Diffusion生成模型与DDPM">
+<meta property="og:url" content="https://kxz18.github.io/2022/06/19/Diffusion/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="目前基于diffusion的生成模型已经逐渐从CV迁移到其他领域，并均展现出不错的效果。正好最近研究项目是生成式的任务，就想应该学习一下diffusion，说不定可以有不错的效果。打算分两篇文章对这个领域的基础知识进行记录，本篇先讲解最基础的diffusion model (Sohl-Dickstein et al., 2015)，再学习denoising diffusion probabilis">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2022/06/19/Diffusion/overview.png">
+<meta property="og:image" content="https://kxz18.github.io/2022/06/19/Diffusion/alg.png">
+<meta property="article:published_time" content="2022-06-19T14:11:32.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.206Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="generation">
+<meta property="article:tag" content="diffusion">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2022/06/19/Diffusion/overview.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2022/06/19/Diffusion/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>基础Diffusion生成模型与DDPM | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一diffusion-model"><span class="nav-text">一、Diffusion Model</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#概述"><span class="nav-text">1. 概述</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#前向过程"><span class="nav-text">2. 前向过程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#逆向过程"><span class="nav-text">3. 逆向过程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二denoising-diffusion-probabilistic-model-ddpm"><span class="nav-text">二、Denoising
+Diffusion Probabilistic Model (DDPM)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#目标函数简化"><span class="nav-text">1. 目标函数简化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#新的参数化方法"><span class="nav-text">2. 新的参数化方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#beta_t的选取"><span class="nav-text">3. \(\beta_t\)的选取</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三improved-ddpm"><span class="nav-text">三、Improved DDPM</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#后记"><span class="nav-text">后记</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考文献"><span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2022/06/19/Diffusion/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          基础Diffusion生成模型与DDPM
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2022-06-19 22:11:32" itemprop="dateCreated datePublished" datetime="2022-06-19T22:11:32+08:00">2022-06-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2022/06/19/Diffusion/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2022/06/19/Diffusion/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>目前基于diffusion的生成模型已经逐渐从CV迁移到其他领域，并均展现出不错的效果。正好最近研究项目是生成式的任务，就想应该学习一下diffusion，说不定可以有不错的效果。打算分两篇文章对这个领域的基础知识进行记录，本篇先讲解最基础的diffusion
+model (<a href="https://arxiv.org/abs/1503.03585" target="_blank" rel="noopener">Sohl-Dickstein et al.,
+2015</a>)，再学习denoising diffusion probabilistic model (<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020</a>,
+DDPM)及对其的优化 (<a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol
+&amp; Dhariwal, 2021</a>)。下一篇讲解抽象程度更高的denoising diffusion
+implicit model (<a href="https://arxiv.org/abs/2010.02502" target="_blank" rel="noopener">Song et al.,
+2020</a>, DDIM)和分析逆向过程最优方差的论文 (<a
+href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
+Analytic-DPM)。<a id="more"></a></p>
+<h2 id="一diffusion-model">一、Diffusion Model</h2>
+<h3 id="概述">1. 概述</h3>
+<p>Diffusion的思想是通过一个前向的扩散过程将复杂的真实数据分布转换为一个简单、易处理的分布（例如正态分布），之后通过有限步的逆过程还原真实数据的分布。如图1，真实数据<span
+class="math inline">\(\mathbf{x}_{0}\)</span>经过总过<span
+class="math inline">\(T\)</span>步加服从正态分布的噪音的过程得到<span
+class="math inline">\(\mathbf{x}_T\)</span>，<span
+class="math inline">\(\mathbf{x}_T\)</span>服从标准正态分布<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>。而模型学习逆向的转移概率<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>，从标准正态分布中采样的<span
+class="math inline">\(\mathbf{x}_T\)</span>开始，逐步生成真实数据。训练目标则是生成的数据分布和真实数据分布尽可能相似。整个生成过程因为存在随机性，所以即使初始的<span
+class="math inline">\(\mathbf{x}_T\)</span>是一样的，在采样的过程中分歧会越来越大，最后得到完全不一样的结果。</p>
+<p><img src="overview.png" alt="overview" style="zoom:50%;" /></p>
+<center>
+<div
+style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
+图1：diffusion过程的概述（图片来自<a url="https://arxiv.org/abs/2006.11239">Ho
+et al. 2020</a>）
+</div>
+</center>
+<h3 id="前向过程">2. 前向过程</h3>
+<p>前向过程的目标是通过不断加噪音将复杂的真实数据分布转换为简单易处理的分布（例如标准正态分布）。其中加入噪音服从的分布种类决定了最后转换成的分布种类，这里以正态分布为例，原论文也讨论了二项分布的情形。给定从真实分布<span
+class="math inline">\(q(\mathbf{x}_0)\)</span>中抽样出的数据点<span
+class="math inline">\(\mathbf{x}_0\)</span>，我们在总共<span
+class="math inline">\(T\)</span>步的迭代中逐步加入高斯噪音，每步高斯噪音的方差由序列<span
+class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>决定。显然每步加入噪音后的结果<span
+class="math inline">\(q(\mathbf{x}_t |
+\mathbf{x}_{t-1})\)</span>都是服从正态分布的，我们令这些正态分布满足以下公式：
+<span class="math display">\[
+q(\pmb{x}_t | \pmb{x}_{t-1}) =
+\mathcal{N}(\sqrt{1-\beta_t}\pmb{x}_{t-1}, \beta_t \pmb{I})
+\]</span> 我们认为整个过程是Markov过程，即第<span
+class="math inline">\(t\)</span>步的分布只与第<span
+class="math inline">\(t-1\)</span>步的分布有关，则整个前向过程的概率为：
+<span class="math display">\[
+q(\pmb{x}_{1:T}|\pmb{x}_0) = \prod_{t=1}^T q(\pmb{x}_t | \pmb{x}_{t-1})
+\]</span> 事实上我们可以从<span
+class="math inline">\(\mathbf{x}_0\)</span>推导出任意一步结果的分布<span
+class="math inline">\(q(\mathbf{x}_t|\mathbf{x}_0)\)</span>，我们令<span
+class="math inline">\(\alpha_t = 1 - \beta_t\)</span>，<span
+class="math inline">\(\bar{\alpha_t} = \prod_{i=1}^t
+\alpha_i\)</span>，<span class="math inline">\(\mathbf{\epsilon} \sim
+\mathcal{N}(\mathbf{0}, \mathbf{I})\)</span>则： <span
+class="math display">\[
+\begin{split}
+\pmb{x}_t &amp;\sim \sqrt{\alpha_t} \pmb{x}_{t-1} + \sqrt{1 - \alpha_t}
+\pmb{\epsilon}\notag\\
+&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{\alpha_t(1 -
+\alpha_{t-1})}\pmb{\epsilon} +  \sqrt{1 - \alpha_t}
+\pmb{\epsilon}\notag\\
+&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{1 -
+\alpha_t\alpha_{t-1}}\pmb{\epsilon}\\
+&amp;= ...\notag\\
+&amp;=\sqrt{\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon} \notag\\
+&amp;= \mathcal{N}(\sqrt{\bar{\alpha}_t}\pmb{x}_0, (1-\bar{\alpha}_t)
+\pmb{I}) \notag
+\end{split}
+\]</span></p>
+<blockquote>
+<p>注意两个正态分布<span class="math inline">\(\mathcal{N}(\mathbf{0},
+\sigma_1^2\mathbf{I})\)</span>，<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\sigma_2^2\mathbf{I})\)</span>之和为<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+(\sigma_1^2+\sigma_2^2)\mathbf{I})\)</span></p>
+</blockquote>
+<p>由于<span class="math inline">\(\beta_t \in (0,
+1)\)</span>，因此可以想象当前向加噪音的步骤<span
+class="math inline">\(T\rightarrow \infty\)</span>时，<span
+class="math inline">\(\bar{\alpha}_T\rightarrow 0\)</span>，所以<span
+class="math inline">\(\mathbf{x}_T\)</span>的分布趋向于标准正态分布<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，这就相当于将复杂的真实数据分布通过加噪音转换为了简单易处理的分布。</p>
+<blockquote>
+<p>需要注意的是方差序列<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>在<a
+href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
+2015</a>文中是通过训练得到的，但<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
+(DDPM)</a>提出直接使用预定义的常数效果更好。</p>
+</blockquote>
+<h3 id="逆向过程">3. 逆向过程</h3>
+<p>逆向过程的目标是通过学习逆向的Markov链的转移概率<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来将转换成的简单分布转换回真实的数据分布。<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>是无法直接解的，因为需要遍历所有<span
+class="math inline">\(\mathbf{x}_{0:t}\)</span>的可能路径才能知道给定<span
+class="math inline">\(\mathbf{x}_t\)</span>时其上一步是<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>的概率。但我们知道的是当<span
+class="math inline">\(\beta_t\)</span>足够小时，<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>也为正态分布。因此我们需要训练模型<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来拟合这个逆向的转移概率。
+<span class="math display">\[
+p_\theta(\pmb{x}_{t-1}|\pmb{x}_t) =
+\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t),
+\pmb{\Sigma}_\theta(\pmb{x}_t, t))
+\]</span> 而训练的目标是通过模型生成的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>与真实数据分布<span
+class="math inline">\(q(\mathbf{x}_0)\)</span>尽可能相近，即最小化这两个分布的交叉熵<span
+class="math inline">\(-\mathbb{E}_{q(\mathbf{x}_0)}(\log
+p_\theta(\mathbf{x}_0)) = - \int q(\mathbf{x}_0) \log
+p_\theta(\mathbf{x}_0) d\mathbf{x}_0\)</span>（或者说最大化negative
+log-likelihood）。所以接下来的目标是推导这个损失函数的计算方式。首先我们可以得到模型预测下每种逆向diffusion路径（<span
+class="math inline">\(\mathbf{x}_{0:T}\)</span>）的分布<span
+class="math inline">\(p_\theta(\mathbf{x}_{0:T})\)</span>以及预测的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>： <span
+class="math display">\[
+\begin{split}
+p_\theta(\pmb{x}_{0:T}) &amp;= p_\theta(\pmb{x}_T)
+\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)\\
+p_\theta(\pmb{x}_0) &amp;= \int p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}
+\end{split}
+\]</span> 其中模型预测的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>可以理解为通过所有可能的逆向路径得到<span
+class="math inline">\(\mathbf{x}_0\)</span>的概率和（如果是离散变量就是<span
+class="math inline">\(p_\theta(\mathbf{x}_0) = \sum
+p_\theta(\mathbf{x}_{0:T})\)</span>，更好理解一点）。由于原始的损失函数是难以计算的，我们可以用jensen不等式推导交叉熵的upper
+bound（类似VAE的优化思想，在VAE中目标函数是variational lower bound）：
+<span class="math display">\[
+\begin{split}
+\mathcal{L}_{ce} &amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log
+p_\theta(\pmb{x}_0)) \notag\\
+&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int
+p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}) \notag\\
+&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int q(\pmb{x}_{1:T}|\pmb{x}_0)
+\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}
+d\pmb{x}_{1:T}) \notag\\
+&amp;=
+-\mathbb{E}_{q(\pmb{x}_0)}(\log\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))
+\notag\\
+&amp;\leq
+-\mathbb{E}_{q(\pmb{x}_0)}(\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\log
+\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))\\
+&amp;= -\int \int
+q(\pmb{x}_0)q(\pmb{x}_{1:T}|\pmb{x}_0)\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_0
+d\pmb{x}_{1:T}\notag\\
+&amp;= -\int
+q(\pmb{x}_{0:T})\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_{0:T}\notag\\
+&amp;=-\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}]
+=
+\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]\notag
+\end{split}
+\]</span></p>
+<p>值得注意的是如果将路径<span
+class="math inline">\(\pmb{x}_{1:T}\)</span>看作是隐变量的话，这一形式取负后与variational
+lower bound的形式是一致的（<span class="math inline">\(\mathbb{E}_{Z\sim
+Q}[\log\frac{P(X,Z)}{Q(Z)}]\)</span>），因此其实也可以通过variational
+lower bound的过程推出，这种思路可以参考<a
+href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">这个博客</a>，我们这里就不再推了。进一步地，这一upper
+bound又可以进一步拆成若干KL散度和熵的和： <span class="math display">\[
+\begin{split}
+&amp;\mathcal{L}_{ce} \leq
+\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]
+\\
+&amp;= \mathbb{E}_{q}[\log \frac{\prod_{t=1}^T q(\pmb{x}_t |
+\pmb{x}_{t-1})}{p(\pmb{x}_T)
+\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \log
+\frac{\prod_{t=1}^T q(\pmb{x}_t |
+\pmb{x}_{t-1})}{\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_t|\pmb{x}_{t-1})}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)} +
+\log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_t|\pmb{x}_{t-1}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)} + \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
+\pmb{x}_1)}] (\text{Markov过程，独立于$\pmb{x}_0$})\\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+(\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}\cdot\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)})
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
+\pmb{x}_1)}](\text{Bayes公式})\\
+&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}+
+\sum_{t=2}^T\log\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)}
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
+&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)} + \log\frac{q(\pmb{x}_T|\pmb{x}_0)}{q(\pmb{x}_1|\pmb{x}_0)}
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
+&amp;= \sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] - \mathbb{E}_q[\log
+p_\theta(\pmb{x}_T)] + \mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] -
+\mathbb{E}_q[\log p_\theta(\pmb{x}_0| \pmb{x}_1)]
+\end{split}
+\]</span> 我们以<span
+class="math inline">\(H\)</span>作为熵的记号，首先看与<span
+class="math inline">\(\mathbf{x}_T\)</span>相关的两项，并将它们合并为<span
+class="math inline">\(\mathcal{L}_T\)</span>： <span
+class="math display">\[
+\begin{split}
+\mathcal{L}_T &amp;= - \mathbb{E}_q[\log p_\theta(\pmb{x}_T)] +
+\mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] \\
+&amp;= H_q(p_\theta(\pmb{x}_T)) - H_q(q(\pmb{x}_T|\pmb{x}_0))\notag
+\end{split}
+\]</span> 由于<span
+class="math inline">\(q\)</span>来源于预定义的方差序列，而<span
+class="math inline">\(\mathbf{x}_T\)</span>是服从标准正态分布的噪音，因此此项为定值，不需要进行优化（如果想要训练得到方差序列，则此项不为0）。对于<span
+class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>一项，<a
+href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
+2015</a>文中表示，为了避免边缘效应，此项设置为前向概率的后验概率： <span
+class="math display">\[
+p_\theta(\pmb{x}_0|\pmb{x}_1) := q(\pmb{x}_0|\pmb{x}_1) =
+q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)}
+\]</span> 因此其期望项<span
+class="math inline">\(\mathcal{L}_0\)</span>只与<span
+class="math inline">\(q\)</span>的分布有关，为一常数（同样，如果需要训练得到方差序列，则此项不为常数）：
+<span class="math display">\[
+\mathcal{L}_0 = -\mathbb{E}_q(\log p_\theta(\pmb{x}_0|\pmb{x}_1)) =
+H_q(q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)})
+\]</span> 而对于最前面的求和的部分，其中的每一项均可以转换为KL散度：
+<span class="math display">\[
+\begin{split}
+&amp;\sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] \notag\\
+&amp;= \sum_{t=2}^T \int q(\pmb{x}_{0:T})\log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}d\pmb{x}_{0:T} \notag\\
+&amp;= \sum_{t=2}^T \int q(\pmb{x}_0,
+\pmb{x}_t)D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))d\pmb{x}_0d\pmb{x}_t \\
+&amp;= \sum_{t=2}^T\mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \notag\\
+&amp;= \sum_{t=2}^T \mathcal{L}_{t-1} \notag
+\end{split}
+\]</span> 则最后我们的优化目标就变成<span
+class="math inline">\(\mathcal{L}_T + \sum_{t=1}^{T-1} \mathcal{L}_t +
+\mathcal{L}_0\)</span>，且第一项和最后一项在方差序列提前确定的情况下均为常数，在需要训练得到方差序列时也可以较容易地计算，而中间的<span
+class="math inline">\(T-1\)</span>项中，KL散度均为两个正态分布的KL散度，因此是可以有关于这两个正态分布的均值和方差的解析表达式的：
+<span class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
+\mathcal{N}(\pmb{\mu}_1, \pmb{\Sigma}_1),\ p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t) \sim \mathcal{N}(\pmb{\mu}_2, \pmb{\Sigma}_2) \\
+&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
+\frac{1}{2}[(\pmb{\mu}_1 - \pmb{\mu}_2)^T
+\pmb{\Sigma}_2^{-1}(\pmb{\mu}_1 - \pmb{\mu}_2) -
+\log\det(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) +
+\text{Tr}(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) - n]
+\end{split}
+\]</span> <span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差均为模型预测的结果，<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
+\mathbf{x}_0)\)</span>的均值和方差是可以解析计算的（如果没有<span
+class="math inline">\(\mathbf{x}_0\)</span>的条件分布<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>则是无法计算的，这也是为什么要在前面的变形中引入<span
+class="math inline">\(\mathbf{x}_0\)</span>的条件）。我们之前有推导过：
+<span class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_t | \pmb{x}_{t-1}) =
+\mathcal{N}(\sqrt{\alpha_t}\pmb{x}_{t-1}, \beta_t \pmb{I})\\
+&amp;q(\pmb{x}_t|\pmb{x}_0)= \mathcal{N}(\sqrt{\bar{\alpha_T}}\pmb{x}_0,
+(1-\bar{\alpha_T}) \pmb{I})
+\end{split}
+\]</span> 所以借助正态分布的概率密度函数表达式，我们可以得到： <span
+class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_t, \pmb{x}_0) \\
+&amp;= q(\pmb{x}_t|\pmb{x}_{t-1},
+\pmb{x}_0)\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)} =
+q(\pmb{x}_t|\pmb{x}_{t-1})\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)}(\text{Markov
+chain性质}) \\
+&amp;=
+\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(\pmb{x}_t
+- \sqrt{\alpha_t}\pmb{x}_{t-1})^2}{\beta_t} + \frac{(\pmb{x}_{t-1} -
+\sqrt{\bar{\alpha}_{t-1}}\pmb{x}_0)^2}{1-\bar{\alpha}_{t-1}} -
+\frac{(\pmb{x}_{t} -
+\sqrt{\bar{\alpha}_{t}}\pmb{x}_0)^2}{1-\bar{\alpha}_t})]\\
+&amp;=
+\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(1-\bar{\alpha}_t)}{\beta_t(1-\bar{\alpha}_{t-1})}\pmb{x}_{t-1}^2
+- 2(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 -
+\bar{\alpha}_{t-1}}\pmb{x}_0)\pmb{x}_{t-1} + C(\pmb{x}_t, \pmb{x}_0))]
+\end{split}
+\]</span> 其中<span class="math inline">\(C(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>是与<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>无关的项，没有展开写，<span
+class="math inline">\(n\)</span>为<span
+class="math inline">\(\pmb{x}\)</span>的维数。通过以上推导可以看到<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)
+\sim \mathcal{N}(\tilde{\mathbf{\mu}}(\mathbf{x}_t, \mathbf{x}_0),
+\tilde{\beta}_t\mathbf{I})\)</span>： <span class="math display">\[
+\begin{split}
+\tilde{\beta}_t &amp;=
+\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\\
+\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) &amp;=
+(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 - \bar{\alpha}_{t-1}}\pmb{x}_0) \cdot
+\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)} \\
+&amp;= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1
+-\bar{\alpha}_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1-\bar{\alpha}_t}\pmb{x}_0
+\end{split}
+\]</span> 也就是说，给定<span
+class="math inline">\(\mathbf{x}_0\)</span>和<span
+class="math inline">\(\mathbf{x}_t\)</span>，我们就可以计算出<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t,
+\mathbf{x}_0)\)</span>所服从的正态分布的均值和方差以及模型预测的<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差，从而算出KL散度<span
+class="math inline">\(D_{KL}(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
+\mathbf{x}_0)||p_\theta(\mathbf{x}_{t-1}|
+\mathbf{x}_t))\)</span>，进而计算损失函数进行梯度下降。训练时<span
+class="math inline">\(\mathbf{x}_0\)</span>与<span
+class="math inline">\(\mathbf{x}_t\)</span>均通过抽样得到。</p>
+<h2 id="二denoising-diffusion-probabilistic-model-ddpm">二、Denoising
+Diffusion Probabilistic Model (DDPM)</h2>
+<p><a href="https://arxiv.org/abs/2006.11239" target="_blank" rel="noopener">Ho et al. 2020
+(DDPM)</a>对最基础的diffusion
+model进行了简化和调整，简化了损失函数并提升了生成质量：</p>
+<ol type="1">
+<li>确定方差序列<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>作为超参，而不用训练得到</li>
+<li>简化逆向分布，认为每维之间相互独立，并指定方差值：
+<ul>
+<li>原始diffusion model：<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
+\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
+\mathbf{\Sigma}_\theta(\mathbf{x}_t, t))\)</span></li>
+<li>DDPM：<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
+\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
+\sigma_t^2\mathbf{I})\)</span>，实验中验证了<span
+class="math inline">\(\sigma_t\)</span>的两种取法（<span
+class="math inline">\(\sigma_t^2 =
+\tilde{\beta}_t=\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\)</span>
+/ <span class="math inline">\(\sigma_t^2 =
+\beta_t\)</span>），结果相近。</li>
+</ul></li>
+<li>更好的<span class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
+t)\)</span>参数化方法</li>
+<li>对于<span
+class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>，使用单独的decoder进行预测<span
+class="math inline">\(p_{\theta&#39;}(\mathbf{x}_{0}|\mathbf{x}_1) =
+\mathcal{N}(\mathbf{\mu}_{\theta&#39;}(\mathbf{x}_1, 1),
+\sigma_1^2\mathbf{I})\)</span>，不是简单使用<span
+class="math inline">\(q\)</span>的后验概率</li>
+</ol>
+<p>接下来详细解释这些简化带来的好处。</p>
+<h3 id="目标函数简化">1. 目标函数简化</h3>
+<p>首先因为<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>提前确定了，因此<span
+class="math inline">\(\mathcal{L}_T\)</span>与<span
+class="math inline">\(\mathcal{L}_0\)</span>都为常数，不需考虑，而由于对逆向的分布的协方差进行了简化，认为每维之间相互独立了，所以<span
+class="math inline">\(\mathcal{L}_{t-1|t\in[2,
+T]}\)</span>中所涉及的KL散度也可以继续简化： <span
+class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
+\mathcal{N}(\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0),
+\tilde{\beta}_t\pmb{I}),\ p_\theta(\pmb{x}_{t-1}| \pmb{x}_t) \sim
+\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t), \sigma_t^2\pmb{I}) \\
+&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
+\frac{1}{2}[\frac{||\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) -
+\pmb{\mu}_\theta(\pmb{x}_t, t)||^2}{\sigma_t^2} -
+\log\det(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) +
+\text{Tr}(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) - n]
+\end{split}
+\]</span> 由于<span
+class="math inline">\(\tilde{\beta}_t\)</span>与<span
+class="math inline">\(\sigma_t^2\)</span>均为超参生成的常数，因此显然KL散度中只有均值差的平方一项是可变的，即<span
+class="math inline">\(t\in[2, T]\)</span>时<span
+class="math inline">\(\mathcal{L}_{t-1}\)</span>变为： <span
+class="math display">\[
+\begin{split}
+\mathcal{L}_{t-1} &amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] + C
+\end{split}
+\]</span> 其中<span
+class="math inline">\(C\)</span>为常数，可以舍去，我们令<span
+class="math inline">\(\mathcal{L}_{t-1}&#39; = \mathcal{L}_{t-1} -
+C\)</span>，则去掉所有常数项后新的目标函数<span
+class="math inline">\(\mathcal{L}\)</span>为： <span
+class="math display">\[
+\mathcal{L} = \sum_{t=2}^T \mathcal{L}_{t-1}&#39; = \sum_{t=2}^T
+\mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2]
+\]</span> 这就比之前完整的KL散度的形式简洁明了多了。</p>
+<h3 id="新的参数化方法">2. 新的参数化方法</h3>
+<p>从上面的目标函数可以看出，最基本的参数化方法是设计模型以<span
+class="math inline">\(\mathbf{x}_t\)</span>和<span
+class="math inline">\(t\)</span>为输入，拟合<span
+class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>的值，但之前我们有推导过，<span
+class="math inline">\(\mathbf{x}_t\)</span>可以写成<span
+class="math inline">\(\mathbf{x}_0\)</span>与高斯噪音<span
+class="math inline">\(\mathbf{\epsilon}\)</span>的加和形式：<span
+class="math inline">\(\mathbf{x}_t(\mathbf{x}_0, \mathbf{\epsilon})=
+\sqrt{\bar{\alpha}_t}\mathbf{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon},
+\mathbf{\epsilon}\sim\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，因此我们可以进一步推导<span
+class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
+t)\)</span>需要拟合的函数形式： <span class="math display">\[
+\pmb{\mu}_\theta(\pmb{x}_t, t) = \tilde{\pmb{\mu}}(\pmb{x}_t,
+\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) =
+\frac{1}{\sqrt{\alpha_t}}(\pmb{x}_t - \frac{\beta_t}{\sqrt{1 -
+\bar{\alpha}_t}}\pmb{\epsilon}_\theta(\pmb{x}_t, t))
+\]</span> 其中<span
+class="math inline">\(\mathbf{\epsilon}_\theta(\mathbf{x}_t,
+t)\)</span>即模型，以<span
+class="math inline">\(\mathbf{x}_t\)</span>和<span
+class="math inline">\(t\)</span>为输入，输出得到<span
+class="math inline">\(\mathbf{x}_t\)</span>的高斯噪音。此时从<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>中采样<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>只需计算<span
+class="math inline">\(\mathbf{x}_{t-1} =
+\frac{1}{\sqrt{\alpha_t}}(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 -
+\bar{\alpha}_t}}\mathbf{\epsilon}_\theta(\mathbf{x}_t, t)) + \sigma_t
+\mathbf{z}, \mathbf{z}\sim\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，这个过程中的<span
+class="math inline">\(\mathbf{\epsilon}_\theta\)</span>就非常像Langevin
+dynamics中的下降梯度了。</p>
+<blockquote>
+<p>Langevin dynamics是分子动力学中的概念，从概率分布<span
+class="math inline">\(p(\mathbf{x})\)</span>中经过梯度下降获得稳定的系统状态，更新的方式为<span
+class="math inline">\(\mathbf{x}_t = \mathbf{x}_{t-1} +
+\frac{\epsilon}{2}\nabla_x\log p(\mathbf{x}_{t-1}) + \sqrt{\epsilon}
+\mathbf{z}_t, \mathbf{z}_t \sim \mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，但是这个过程中的<span
+class="math inline">\(\mathbf{z}_t\)</span>是用来缓解陷入局部最优的问题的</p>
+</blockquote>
+<p>如果我们可以进一步将此公式代入<span
+class="math inline">\(\mathcal{L}_{t-1}&#39;\)</span>可以得到非常像denoising
+score matching的损失函数： <span class="math display">\[
+\begin{split}
+\mathcal{L}_{t-1}&#39; &amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0),
+\pmb{\epsilon}}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) -
+\pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0),
+\pmb{\epsilon}}[\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}||\pmb{\epsilon}
+- \pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2]
+\end{split}
+\]</span></p>
+<blockquote>
+<p>score matching的生成模型模拟Langevin
+dynamics的过程，而每步下降梯度是由神经网络进行预测</p>
+</blockquote>
+<p>根据以上推导，我们可以直接让网络预测<span
+class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>，也可以预测噪音<span
+class="math inline">\(\mathbf{\epsilon}\)</span>。虽然两者在数学上是等价的，但实际实验中通常使用后者训练出的网络效果更好。除此之外，原本的训练目标需要遍历所有<span
+class="math inline">\(t \in [2, T]\)</span>，<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
+(DDPM)</a>发现如果将<span
+class="math inline">\(t\)</span>也改成抽样，并去除权重<span
+class="math inline">\(\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}\)</span>，训练效果会更好，即新的训练目标简化为：
+<span class="math display">\[
+\mathcal{L}_{\text{simple}} = \mathbb{E}_{t, q(\pmb{x}_0),
+\pmb{\epsilon}}[||\pmb{\epsilon} -
+\pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2], t\sim \mathcal{U}(1, T),
+\pmb{\epsilon}\sim\mathcal{N}(\pmb{0}, \pmb{I})
+\]</span> 其训练和采样生成的过程也变得非常简洁，如下面的伪代码：</p>
+<p><img src="alg.png" alt="overview" style="zoom:50%;" /></p>
+<center>
+<div
+style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
+DDPM训练和采样生成的伪代码（来自<a url="https://arxiv.org/abs/2006.11239">Ho
+et al. 2020</a>）
+</div>
+</center>
+<p>值得一提的是去除权重这一行为使得不同步的<span
+class="math inline">\(\pmb{\epsilon}_\theta(\cdot,
+t)\)</span>是平等的，这也是score
+matching网络的做法。虽然从数学推导上来看会使目标函数的最终效果偏离令<span
+class="math inline">\(q(\pmb{x}_0) =
+p_\theta(\pmb{x}_0)\)</span>，但从优化的角度来看这么做是合理的。因为不同步<span
+class="math inline">\(t\)</span>实际使用的是不同的参数，相互之间没有依赖关系，而它们对应目标函数中的项相互之间只是加权求和的关系，所以令整体最小和使每一项分别最小最后的效果是一样的。</p>
+<h3 id="beta_t的选取">3. <span
+class="math inline">\(\beta_t\)</span>的选取</h3>
+<p>DDPM原文中选取从<span
+class="math inline">\(\beta_1=10^{-4}\)</span>线性增长到<span
+class="math inline">\(\beta_T=0.02\)</span>。<span
+class="math inline">\(\beta_t\)</span>的选取需要是相对于数据的分布是较小的，这样才能保证前向和逆向的过程的分布是类似的形式（图像生成数据归一化到<span
+class="math inline">\([-1, 1]\)</span>）。</p>
+<h2 id="三improved-ddpm">三、Improved DDPM</h2>
+<p><a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol &amp; Dhariwal
+(Improved DDPM， 2021)</a> 的文中提出了若干对DDPM模型的优化方法。</p>
+<p>首先是提出基于cosine进行<span
+class="math inline">\(\beta_t\)</span>的变化： <span
+class="math display">\[
+\beta_t = \text{clip}(1 - \frac{\bar{\alpha}_t}{\bar{\alpha}_{t-1}},
+0.999), \bar{\alpha}_t = \frac{f(t)}{f(0)}, f(t) = \cos (\frac{t/T+s}{1
++ s}\cdot \frac{\pi}{2})^2
+\]</span> 其中<span
+class="math inline">\(s\)</span>是较小的偏置，防止在<span
+class="math inline">\(t=0\)</span>时<span
+class="math inline">\(\beta_t\)</span>过于小。其次，<a
+href="https://arxiv.org/abs/2102.09672">Nichol &amp; Dhariwal (Improved
+DDPM， 2021)</a> 也提出用模型预测的向量<span
+class="math inline">\(\pmb{v}\)</span>对<span
+class="math inline">\(\beta_t\)</span>和<span
+class="math inline">\(\tilde{\beta}_t\)</span>进行混合来作为逆向过程的方差：
+<span class="math display">\[
+\pmb{\Sigma}_\theta(\pmb{x}_t, t) = \exp(\pmb{v}\log \beta_t + (1 -
+\pmb{v})\log\tilde{\beta}_t)
+\]</span> 因为<span
+class="math inline">\(\mathcal{L}_{\text{simple}}\)</span>是与<span
+class="math inline">\(\pmb{\Sigma}_\theta\)</span>无关的，他们选择将原始的训练目标和DDPM中简化的训练目标进行加权作为新的训练目标：
+<span class="math display">\[
+\mathcal{L}_\text{hybrid} = \mathcal{L}_\text{simple} + \lambda
+\mathcal{L}
+\]</span> 除此之外他们提出通过strided
+sampling的方式加速生成采样，具体而言，每隔<span
+class="math inline">\(\lceil T/S
+\rceil\)</span>步进行一次更新，这样将总共<span
+class="math inline">\(T\)</span>步的采样变为<span
+class="math inline">\(S\)</span>步，每步的方差可以如下计算： <span
+class="math display">\[
+\beta_{S_t} = 1 - \frac{\bar{\alpha}_{S_t}}{\bar{\alpha}_{S_{t-1}}},
+\tilde{\beta}_{S_t}
+=\frac{1-\bar{\alpha}_{S_{t-1}}}{1-\bar{\alpha}_{S_t}}\beta_{S_t}
+\]</span></p>
+<h2 id="后记">后记</h2>
+<p>本篇到此就结束了，记录了基础的diffusion
+model以及由其简化而来的denoising diffusion probabilistic model
+(DDPM)。而DDPM文中也分析了其框架与Langevin dynamics以及score
+matching方法的相似之处。除此之外，也记录了Improved
+DDPM中提出的若干优化。整个过程涉及很多数学推导，需要慢慢看仔细思考才能理解，写完以后大脑cpu温度过高直接去打游戏了。下一篇将讲解抽象程度更高的denoising
+diffusion implicit model (<a
+href="https://arxiv.org/abs/2010.02502">Song et al., 2020</a>,
+DDIM)和DDIM理论最优的<span class="math inline">\(\sigma\)</span>取值(<a
+href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
+Analytic-DPM)。</p>
+<h2 id="参考文献">参考文献</h2>
+<p>[1] <a
+href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">What
+are diffusion models?</a></p>
+<p>[2] <a href="https://arxiv.org/pdf/1503.03585.pdf" target="_blank" rel="noopener">Deep Unsupervised
+Learning using Nonequilibrium Thermodynamics (ICML 2015)</a></p>
+<p>[3] <a href="https://arxiv.org/pdf/2006.11239.pdf" target="_blank" rel="noopener">Denoising
+Diffusion Probabilistic Models (NeurIPS 2020)</a></p>
+<p>[4] <a href="https://arxiv.org/pdf/2102.09672.pdf" target="_blank" rel="noopener">Improved Denoising
+Diffusion Probabilistic Models</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/generation/" rel="tag"># generation</a>
+              <a href="/tags/diffusion/" rel="tag"># diffusion</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/10/23/Zerotier/" rel="prev" title="使用 Zerotier 进行 p2p 连接">
+      <i class="fa fa-chevron-left"></i> 使用 Zerotier 进行 p2p 连接
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/06/21/DDIM/" rel="next" title="DDIM与最优逆向过程方差">
+      DDIM与最优逆向过程方差 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

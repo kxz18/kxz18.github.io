@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GNN（二）：图神经网络——深层编码器、GCN、GAT">
+<meta property="og:url" content="https://kxz18.github.io/2020/06/25/GNN/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2020/06/25/GNN/graph.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/06/25/GNN/layers.png">
+<meta property="article:published_time" content="2020-06-25T15:25:57.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.208Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="GNN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2020/06/25/GNN/graph.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2020/06/25/GNN/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>GNN（二）：图神经网络——深层编码器、GCN、GAT | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一图的深度学习基础"><span class="nav-text">一、图的深度学习基础</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#符号"><span class="nav-text">1. 符号</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#思路"><span class="nav-text">2. 思路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#公式"><span class="nav-text">3. 公式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二图卷积网络graph-convolutional-networksgcn"><span class="nav-text">二、图卷积网络（Graph
+Convolutional Networks，GCN）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三图注意力网络graph-attention-networksgat"><span class="nav-text">三、图注意力网络（Graph
+Attention Networks，GAT）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考文献"><span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2020/06/25/GNN/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          GNN（二）：图神经网络——深层编码器、GCN、GAT
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-06-25 23:25:57" itemprop="dateCreated datePublished" datetime="2020-06-25T23:25:57+08:00">2020-06-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2020/06/25/GNN/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2020/06/25/GNN/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。<a id="more"></a></p>
+<h2 id="一图的深度学习基础">一、图的深度学习基础</h2>
+<h3 id="符号">1. 符号</h3>
+<ul>
+<li><span class="math inline">\(V\)</span> 表示图的点集</li>
+<li><span class="math inline">\(\mathbf{A}\)</span>
+表示图的邻接矩阵（<span class="math inline">\(a_{ij} =
+1\)</span>表示存在从点 <span class="math inline">\(i\)</span> 到点 <span
+class="math inline">\(j\)</span> 的边）</li>
+<li><span class="math inline">\(\mathbf{X} \in \mathbb{R}^{m\times
+|V|}\)</span>
+为表征节点特征的向量组成的矩阵。每列表示一个节点，例如关注节点的颜色，则节点的特征向量可以表示为以RGB方式表示的三维向量。如果没有特殊的特征需要关注，则可以使用
+one-hot 编码的方式进行表示</li>
+</ul>
+<h3 id="思路">2. 思路</h3>
+<p>基本的思路是，以一个节点为中心的局部的网络结构影响这个节点的特征，因此需要基于这个局部网络和节点自身产生对节点的最终表示向量。其中，其邻接点的信息可以用深度神经网络进行整合，将得到的结果以一定的方式和节点自身结合，从而得出最终的表示向量。例如对于以下的图，我们想对节点
+A 进行 embedding，得到它的表示向量：</p>
+<p><img src="graph.png" alt="graph" style="zoom:50%;" /></p>
+<p>则首先需要考虑 B、C、D 对 A
+的影响。如果需要知道更长远的影响，则还需要考虑 B、C、D 的邻居对 A
+的影响，即 F、E 对 A
+的影响。假设我们只考虑两层的深度（注意这里的深度不是神经网络的深度，而是指考虑多少层邻居），则得到
+A 的表示向量的过程如下图所示：</p>
+<p><img src="layers.png" alt="layers" style="zoom:60%;" /></p>
+<p>这其中，<span class="math inline">\(X_N\)</span> 表示的是节点 <span
+class="math inline">\(N\)</span> 输入的特征向量，即矩阵 <span
+class="math inline">\(\mathbf{X}\)</span> 中节点 <span
+class="math inline">\(N\)</span>
+对应的向量。圆形表示的是对应节点的表示向量，并不一定同一字母都是相同的，例如
+Layer-0 中都是输入的特征向量，但 Layer-1
+中可能并不继续使用输入的特征向量。而正方形中则表示的是用来提取局部网络信息的深度神经网络，例如
+CNN、Attention
+等。这些神经网络的输入是由当前点的邻接点决定的，可以使用取平均值、max
+pooling 等方法对邻居的表示向量（多个向量）进行处理，从而得到与 <span
+class="math inline">\(X_N\)</span> 本身形状相同的向量（一个向量）。</p>
+<p>从这张图就可以看出，对网络的优化可以有四个方面：</p>
+<ul>
+<li>正方形中的网络结构</li>
+<li>将邻接点的表示向量整合成正方形中网络输入的方法</li>
+<li>正方形中网络输出与节点自身的表示向量的结合方法</li>
+<li>每层中节点自身的表示向量的选取</li>
+</ul>
+<p>得到了最后的 embedding
+之后，就可以用于一系列的任务，例如过一个全连接层，再加上一个 softmax
+进行节点的分类；用节点 embedding 的 cos similarity
+预测两个节点间是否有边。</p>
+<h3 id="公式">3. 公式</h3>
+<p>有了以上的原理，很明显实现的过程可以用递归的方法进行。这里以取平均值的方式对邻居的向量进行处理，方块中的神经网络取最简单的全连接层。假设当前想要得到节点
+<span class="math inline">\(v\)</span> 的 embedding，以 <span
+class="math inline">\(h_v^k\)</span> 表示在 Layer-k 之后节点 <span
+class="math inline">\(v\)</span> 的表示向量，以<span
+class="math inline">\(N(v)\)</span> 表示节点 <span
+class="math inline">\(v\)</span> 的邻接的点的集合，大写的<span
+class="math inline">\(K\)</span>作为给定的深度，<span
+class="math inline">\(z_v\)</span> 表示最后得到的节点 <span
+class="math inline">\(v\)</span> 的 embedding。则 embedding
+的过程可以用以下过程定义： <span class="math display">\[
+\begin{array}{lr}
+h_v^0 = x_v （递归基）\\
+h_v^k = ReLU(\mathbf{W_k}\sum_{u\in N(v)}
+\frac{h_u^{k-1}}{|N(v)|}+\mathbf{B_k}h_v^{k-1}),\forall k \in
+\{1,...,K\} \\
+z_v = h_v^k
+\end{array}
+\]</span> 这里的激活函数使用的是<span
+class="math inline">\(ReLU\)</span>，也可以换用别的。实际实现中可以令
+<span class="math inline">\(\mathbf{H^k} = [h_1^{k^T}, h_2^{k^T}, ...,
+h_n^{k^T}]^T\)</span>，利用上述的过程进行前向传播的计算。</p>
+<p>可以看到实际上 <span class="math inline">\(\mathbf{W_k}\)</span> 和
+<span class="math inline">\(\mathbf{B_k}\)</span>
+起到提取特征的作用，根据不同的场景，可以设计不同的网络进行特征的提取，例如用
+CNN
+进行特征的提取。但是训练完成之后，这些部分的参数是可以在不同的图网络之间共享的，而不是像浅层的
+node2vec
+一样每列参数对应唯一的节点，因此可以使模型具有更好的泛化能力。</p>
+<h2
+id="二图卷积网络graph-convolutional-networksgcn">二、图卷积网络（Graph
+Convolutional Networks，GCN）</h2>
+<p>在上一部分的基础上，令<span class="math inline">\(\mathbf{H^l} =
+[h_1^{l^T}, h_2^{l^T}, ...,
+h_n^{l^T}]^T\)</span>（注意转置，这里一行是一个节点的向量表示）表示第
+<span class="math inline">\(l\)</span> 层的各节点 embedding
+组成的矩阵（这里用 <span class="math inline">\(l\)</span> 而不用 <span
+class="math inline">\(k\)</span>
+是和论文中的公式格式一样）。则图卷积网络的层间递推公式为： <span
+class="math display">\[
+\mathbf{H^{l+1}} = \sigma (\tilde{D}^{-\frac{1}{2}} \tilde{A}
+\tilde{D}^{-\frac{1}{2}} \mathbf{H^l} \mathbf{W^l})
+\]</span> 其中符号表示如下：</p>
+<ul>
+<li><p><span
+class="math inline">\(\tilde{A}\)</span>：邻接矩阵加上单位阵，即给每个节点加上自环，<span
+class="math inline">\(\tilde{A} = A + I_{|V|}\)</span></p></li>
+<li><p><span class="math inline">\(\tilde{D}\)</span>：<span
+class="math inline">\(\tilde{A}\)</span>的度矩阵，为对角阵，<span
+class="math inline">\(\tilde{d_{ii}} = \sum_j
+\tilde{a_{ij}}\)</span>，<span
+class="math inline">\(-\frac{1}{2}\)</span>次在此处的作用是使矩阵对角元素同变换为原来的<span
+class="math inline">\(-\frac{1}{2}\)</span>次</p></li>
+<li><p><span class="math inline">\(\mathbf{W^l}\)</span>：层 <span
+class="math inline">\(l\)</span> 的参数矩阵</p></li>
+<li><p><span
+class="math inline">\(\sigma\)</span>：激活函数，例如sigmoid或者ReLU</p></li>
+</ul>
+<p>注意<span
+class="math inline">\(\tilde{D}\)</span>矩阵是一个对角阵，因此 <span
+class="math inline">\(\tilde{D}^{-\frac{1}{2}} \tilde{A}
+\tilde{D}^{-\frac{1}{2}}\)</span> 的部分可以直接算出来，结果表示为 <span
+class="math inline">\(A&#39;\)</span> 矩阵，则其元素满足 <span
+class="math inline">\(a_{ij}&#39; = d_{ii}^{-\frac{1}{2}} \tilde{a_{ij}}
+d_{jj}^{-\frac{1}{2}}\)</span>。由于 <span
+class="math inline">\(d_{ii}\)</span> 其实是节点 <span
+class="math inline">\(i\)</span>
+的度（自环只计算为一度），因此相当于对邻接矩阵的每个元素除以了对应两节点的度的开方的乘积。之后再乘一个参数矩阵<span
+class="math inline">\(\mathbf{W^l}\)</span>并通过一个激活函数得到下一层。因此其实可以用类似前一部分的方式将公式改写为更可读的方式：
+<span class="math display">\[
+h_v^k = \sigma (\mathbf{W_k} \sum_{u\in N(v) \cup\\{v\\}}
+\frac{h_u^{k-1}}{\sqrt{|N(u)||N(v)|}})
+\]</span>
+其实和上一部分对比来看，GCN相当于把节点自身的表示也和邻居的表示划为同类一起计算，同时调整了对邻居的表示取平均的做法。如果把
+<span class="math inline">\(\tilde{D}^{-\frac{1}{2}} \tilde{A}
+\tilde{D}^{-\frac{1}{2}}\)</span> 改成 $^{-1}
+$，在把自身的表示与邻居共同讨论的前提下，就与上一部分的想法是一致的了。当然，GCN
+之所以如此调整，是有更深刻的数学依据的，这里只是用了一种比较简单的方法使大家对
+GCN
+公式能有更好的记忆，其背后的数学原理就不展开了，如果有兴趣可以阅读参考文献中的第二篇。</p>
+<h2
+id="三图注意力网络graph-attention-networksgat">三、图注意力网络（Graph
+Attention Networks，GAT）</h2>
+<p>为图神经网络添加注意力机制的想法来源于递归的式子： <span
+class="math display">\[
+h_v^k = ReLU(\mathbf{W_k}\sum_{u\in N(v)}
+\frac{h_u^{k-1}}{|N(v)|}+\mathbf{B_k}h_v^{k-1}),\forall k \in
+\\{1,...,K\\}
+\]</span> 这个式子中的 <span
+class="math inline">\(\frac{1}{|N(v)|}\)</span>
+表示的是所有的邻接点都有一样的重要性，即取平均作为局部网络的表示，而实际上可能并不是所有邻接点的贡献都是一样的。例如预测我是怎么样的一个人，可能要考虑我的朋友都是怎么样的人，但我的朋友中有些人和我比较亲密，有些人则比较疏远，那么和我比较亲密的人可能有更大的参考价值。而在我的社交网络图上，则可能用边的权重来表示和我的亲密程度。因此可能对不同的邻接点，需要有不同的系数，而不是统一为<span
+class="math inline">\(\frac{1}{|N(v)|}\)</span>。</p>
+<p>具体而言，以 <span class="math inline">\(e_{vu}\)</span> 表示节点
+<span class="math inline">\(u\)</span> 对编码节点 <span
+class="math inline">\(v\)</span> 的贡献（一个标量），则有： <span
+class="math display">\[
+e_{vu} = attention(\mathbf{W_k}h_u^{k-1}, \mathbf{W_k}h_v^{k-1})
+\]</span> 之后再对 <span class="math inline">\(e_{vu}\)</span>
+进行归一化处理，得到节点 <span class="math inline">\(u\)</span>
+的注意力系数 <span class="math inline">\(\alpha_{vu}\)</span>： <span
+class="math display">\[
+\alpha_{vu} = \frac{\exp(e_{vu})}{\sum_{k\in N(v)}\exp (e_{vk})}
+\]</span> 而对于注意力函数 <span
+class="math inline">\(attention\)</span>
+的选取，则是可以进行研究的部分。最简单的可以是过一个全连接层得到结果，当然也可以同时考虑邻居以及边的权重。也可以参考
+Transformer
+中的多头注意力模型，用多组平行的注意力头进行计算，将最后得到的向量拼接作为结果。</p>
+<h2 id="参考文献">参考文献</h2>
+<p>[1] <a
+href="http://web.stanford.edu/class/cs224w/slides/08-GNN.pdf">Stanford
+CS224W: Machine Learning with Graphs，Lecture 8 - Graph Neural
+Networks</a></p>
+<p>[2] <a href="https://arxiv.org/abs/1609.02907" target="_blank" rel="noopener">Semi-Supervised
+Classification with Graph Convolutional Networks (ICLR 2017,
+Thomas)</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/GNN/" rel="tag"># GNN</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/06/24/GNNrepr/" rel="prev" title="GNN（一）：图的表征学习">
+      <i class="fa fa-chevron-left"></i> GNN（一）：图的表征学习
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/09/09/Minecraft/" rel="next" title="Minecraft Java版服务器搭建（Linux）与客户端连接">
+      Minecraft Java版服务器搭建（Linux）与客户端连接 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

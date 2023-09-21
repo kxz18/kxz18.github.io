@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 electronic-wechat，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 下使用 Wine 安装 windows 版的微信">
+<meta property="og:url" content="https://kxz18.github.io/2020/11/12/Wechat/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="一个令 Linux 用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是 electronic-wechat，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2020/11/12/Wechat/winecfg.png">
+<meta property="og:image" content="https://kxz18.github.io/2020/11/12/Wechat/resolution.png">
+<meta property="article:published_time" content="2020-11-12T10:08:57.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.243Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="Wine">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2020/11/12/Wechat/winecfg.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2020/11/12/Wechat/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Linux 下使用 Wine 安装 windows 版的微信 | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一wine-简介"><span class="nav-text">一、Wine 简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二安装步骤"><span class="nav-text">二、安装步骤</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#安装-wine"><span class="nav-text">1. 安装 Wine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#安装-winetricks"><span class="nav-text">2. 安装 winetricks</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#创建-wine-bottle"><span class="nav-text">3. 创建 wine bottle</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#安装微信"><span class="nav-text">4. 安装微信</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三参考资料"><span class="nav-text">三、参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2020/11/12/Wechat/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux 下使用 Wine 安装 windows 版的微信
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-11-12 18:08:57" itemprop="dateCreated datePublished" datetime="2020-11-12T18:08:57+08:00">2020-11-12</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux/" itemprop="url" rel="index"><span itemprop="name">Linux</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2020/11/12/Wechat/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2020/11/12/Wechat/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>一个令 Linux
+用户十分头痛的问题就是QQ和微信的使用。目前腾讯有Linux版的QQ，但是界面十分简陋，仿佛上世纪的产品，且没有Linux版的微信。之前一直在用的微信是
+<code>electronic-wechat</code>，是基于网页版微信用electron进行UI展示的开源软件，虽然一定程度上可以用了，但毕竟只是基于网页版重新写了个UI，bug很多，而且近两年注册的微信号因为不能登录网页版微信所以不能用。于是就想能不能用
+Wine 装一个 windows 下的微信客户端解决问题。<a id="more"></a></p>
+<h2 id="一wine-简介">一、Wine 简介</h2>
+<blockquote>
+<p><strong>Wine</strong>是在<a
+href="https://zh.wikipedia.org/wiki/X86">x86</a>、<a
+href="https://zh.wikipedia.org/wiki/X86-64">x86-64</a>容许<a
+href="https://zh.wikipedia.org/wiki/类Unix系统">类Unix操作系统</a>在<a
+href="https://zh.wikipedia.org/wiki/X_Window_System">X Window
+System</a>运行<a
+href="https://zh.wikipedia.org/wiki/Microsoft_Windows">Microsoft
+Windows</a>程序的软件。另外，Wine也提供<a
+href="https://zh.wikipedia.org/wiki/程式庫">程序运行库</a>（Winelib）来帮助计算机程序设计师将Windows程序移植到类Unix系统；也有不少软件经过Wine测试后发布，比如<a
+href="https://zh.wikipedia.org/wiki/Picasa">Picasa</a>、<a
+href="https://zh.wikipedia.org/wiki/UTorrent">uTorrent</a>、<a
+href="https://zh.wikipedia.org/wiki/MediaCoder">MediaCoder</a>。</p>
+<p>Wine通过提供一个<a
+href="https://zh.wikipedia.org/wiki/兼容层">兼容层</a>来将Windows的系统调用转换成与POSIX标准的系统调用。它还提供了Windows系统运行库的替代品和一些系统组件的替代品。为了避免著作权问题，Wine主要使用黑箱测试逆向工程来编写。</p>
+<p>Wine最早是“<strong>Win</strong>dows
+<strong>E</strong>mulator”，即Windows模拟器的缩写，但Wine现在为“<strong>W</strong>ine
+<strong>I</strong>s <strong>N</strong>ot an
+<strong>E</strong>mulator”的<a
+href="https://zh.wikipedia.org/wiki/遞迴縮寫">递归缩写</a>，即Wine不是模拟器。Wine的正确名称是“Wine”，而不是全大写或全小写。</p>
+</blockquote>
+<p>以上是 wiki 对 Wine 的简介。主要就是通过一个兼容层改变 windows
+的系统调用，从而能在使用 POSIX 标准的系统（如Linux）上运行 windows
+的软件。如果不是很懂的话把它看作是一个轻量的虚拟机也行（虽然两者完全不同）。</p>
+<h2 id="二安装步骤">二、安装步骤</h2>
+<h3 id="安装-wine">1. 安装 Wine</h3>
+<p>Wine 在大部分 Linux
+发行版的软件库中都有，直接用包管理器进行安装即可。例如在 ubuntu 下使用
+apt：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install wine</span><br></pre></td></tr></table></figure>
+<p>Wine 除了基础版本以外，还有 deepin 系统基于 Wine 开发的
+deepin-wine，主要用于 deepin 系统，一般只用基础版的 Wine 就行了。</p>
+<p>安装完 Wine 后会附带 <code>winecfg</code> 程序，这是用来调整要模拟的
+windows 版本、选择增加的 dll 库、画面分辨率等设置的。</p>
+<h3 id="安装-winetricks">2. 安装 winetricks</h3>
+<p>winetricks 是一个辅助脚本，用于在 wine
+中下载并安装各种闭源的组件和运行库。因为 windows 版的微信运行需要
+riched20.dll 和 riched32.dll 两个动态库的支持，因此需要用到
+winetricks。</p>
+<p>使用包管理器安装的 winetricks
+可能版本过老，导致安装的依赖不对，因此最好直接去 github 上下载。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wget https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks</span><br></pre></td></tr></table></figure>
+<p>然后给权限并移动到<code>/usr/local/bin/</code>（系统路径之一）下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">chmod +x winetricks					<span class="comment"># 给执行权限</span></span><br><span class="line">sudo mv winetricks /usr/<span class="built_in">local</span>/bin	<span class="comment"># 移动到系统路径</span></span><br></pre></td></tr></table></figure>
+<p>除此之外， winetricks 有一个依赖项是
+<code>cabextract</code>，需要手动安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install cabextract</span><br></pre></td></tr></table></figure>
+<h3 id="创建-wine-bottle">3. 创建 wine bottle</h3>
+<p>如果直接用默认参数运行 Wine、winetricks
+的话，装的所有东西都会装到系统盘里，不同的软件要用的 dll
+可能不一样，最后会杂糅在一起，而且它塞一堆 dll
+进系统盘我们肯定不愿意，但如果手动创建 wine bottle
+则可以把这些环境分开，就像 python 中的 <code>virtualenv</code>
+一样。创建的方式很简单，只需要指定这些软件打开的路径即可。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /path/to/target		<span class="comment"># 切到用来装 Wine 环境的路径</span></span><br><span class="line">mkdir Wine				<span class="comment"># 不同程序的依赖将装在 Wine 文件夹的各个子目录下</span></span><br><span class="line"><span class="built_in">cd</span> Wine					<span class="comment"># 进入 Wine 文件夹</span></span><br><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat winecfg  <span class="comment"># 初始化 Wine/Wechat 目录</span></span><br></pre></td></tr></table></figure>
+<p>初次进入 winecfg
+时可能会跳出很多错误提示，让你下载一些依赖，可以直接跳过，等以后要用了再下载。跳过之后进入
+winecfg 的界面，很有可能字、界面非常小，这是因为自己在 Linux
+系统中设置了屏幕放缩，在<strong>Graphics-&gt;Screen Resolution</strong>
+一栏中可以调整 dpi，从而调大字。</p>
+<p><img src="winecfg.png" alt="winecfg" style="zoom:50%;" /><img src="resolution.png" alt="resolution" style="zoom:50%;" /></p>
+<p>至此一个基础的环境已经配置好了，如果要运行一些 windows
+程序时只需要用以下指令即可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat wine ***.exe</span><br></pre></td></tr></table></figure>
+<p>当然，复杂一点的 windows 程序需要的 dll
+不一样，所以只用基础环境可能并不能运行。对于微信而言，还需要riched20.dll
+和 riched32.dll 两个动态库，使用 winetricks 进行安装。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat winetricks</span><br></pre></td></tr></table></figure>
+<p>选择 <strong>Select the default wineprefix -&gt; Install a Windows
+DLL or component</strong>，然后勾选上riched20.dll 和 riched32.dll
+两个动态库，按确定，等待下载即可。注意这里如果一直下载失败的话可能会需要科学上网，命令行代理可以使用<code>proxychains</code>。下载完成之后退出
+winetricks 即可。</p>
+<p>到此为止一个适合微信的环境已经建立完成，接下来只需要安装微信即可。</p>
+<h3 id="安装微信">4. 安装微信</h3>
+<p>首先从<a
+href="https://pc.weixin.qq.com/">微信官网</a>下载微信安装器，然后用 Wine
+运行安装器 WechatSetup.exe：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WINARCH=win32 WINEPREFIX=/path/to/target/Wine/WeChat wine WechatSetup.exe</span><br></pre></td></tr></table></figure>
+<p>接下来按照在 Windows
+上的安装操作一样即可。安装完后即可使用。一般来说会自动在桌面产生快捷方式，如果桌面没有可以在开始菜单中搜索微信。</p>
+<h2 id="三参考资料">三、参考资料</h2>
+<ol type="1">
+<li><a
+href="https://www.cnblogs.com/makefile/p/wine-life.html">Linux下的wine生活(QQ/微信/Office)</a></li>
+<li><a
+href="https://zhuanlan.zhihu.com/p/76331687">Linux下通过Wine安装微信</a></li>
+<li><a href="https://zh.wikipedia.org/zh-cn/Wine" target="_blank" rel="noopener">Wine 维基百科</a></li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Wine/" rel="tag"># Wine</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/09/14/Netns/" rel="prev" title="Linux Network Namespace(netns)使用——以PPPoE实验为例">
+      <i class="fa fa-chevron-left"></i> Linux Network Namespace(netns)使用——以PPPoE实验为例
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/01/18/Miniconda/" rel="next" title="Linux 非 Root 用户安装与使用 conda">
+      Linux 非 Root 用户安装与使用 conda <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>

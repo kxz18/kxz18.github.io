@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+  <meta name="google-site-verification" content="9S07bMMRUCaakH23S59n0PFyT0fdee3BKto1bHf1wwk">
+  <meta name="baidu-site-verification" content="code-vWo1FPc80q">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"kxz18.github.io","root":"/","scheme":"Pisces","version":"8.0.0-rc.3","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":3,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="因为想学习Neural ODE视角下的diffusion方法，所以先从入门Neural ODE开始。本篇文章从ODE的定义开始，通过Euler数值法求解ODE与ResNet架构之间的关系引出Neural ODE，并推导其训练所需的reverse-time算法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Neural ODEs">
+<meta property="og:url" content="https://kxz18.github.io/2023/02/09/NeuralODE/index.html">
+<meta property="og:site_name" content="学习飞翔的企鹅">
+<meta property="og:description" content="因为想学习Neural ODE视角下的diffusion方法，所以先从入门Neural ODE开始。本篇文章从ODE的定义开始，通过Euler数值法求解ODE与ResNet架构之间的关系引出Neural ODE，并推导其训练所需的reverse-time算法。">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://kxz18.github.io/2023/02/09/NeuralODE/Euler_method.png">
+<meta property="article:published_time" content="2023-02-09T13:53:16.000Z">
+<meta property="article:modified_time" content="2023-09-08T02:47:57.239Z">
+<meta property="article:author" content="kxz18">
+<meta property="article:tag" content="Neural ODE">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://kxz18.github.io/2023/02/09/NeuralODE/Euler_method.png">
+
+<link rel="canonical" href="https://kxz18.github.io/2023/02/09/NeuralODE/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'en'
+  };
+</script>
+
+  <title>Neural ODEs | 学习飞翔的企鹅</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before, .use-motion .logo-line-after {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+  <div id="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <main class="main">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+        <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+        <span class="toggle-line toggle-line-first"></span>
+        <span class="toggle-line toggle-line-middle"></span>
+        <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line-before"></i>
+      <h1 class="site-title">学习飞翔的企鹅</h1>
+      <i class="logo-line-after"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">What's the point in living if I have to hide ?</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>About</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+        <li class="menu-item menu-item-links">
+
+    <a href="/links/" rel="section"><i class="fa fa-link fa-fw"></i>Links</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="Searching..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一ordinary-differential-equation-ode"><span class="nav-text">一、Ordinary Differential
+Equation (ODE)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二euler法与resnet"><span class="nav-text">二、Euler法与ResNet</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三neural-ode"><span class="nav-text">三、Neural ODE</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#定义"><span class="nav-text">1. 定义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#训练"><span class="nav-text">2. 训练</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#adjoint-sensitivity-method"><span class="nav-text">Adjoint sensitivity method</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考文献"><span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="kxz18"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">kxz18</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/kxz18" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;kxz18" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:jackie_kxz@outlook.com" title="E-Mail → mailto:jackie_kxz@outlook.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/kxz38915925" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;kxz38915925" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </header>
+
+      
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+      <div class="main-inner">
+        
+
+        <div class="content post posts-expand">
+          
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
+    <link itemprop="mainEntityOfPage" href="https://kxz18.github.io/2023/02/09/NeuralODE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="kxz18">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习飞翔的企鹅">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Neural ODEs
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2023-02-09 21:53:16" itemprop="dateCreated datePublished" datetime="2023-02-09T21:53:16+08:00">2023-02-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2023-09-08 10:47:57" itemprop="dateModified" datetime="2023-09-08T10:47:57+08:00">2023-09-08</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%AD%A6%E4%B9%A0/" itemprop="url" rel="index"><span itemprop="name">学习</span></a>
+                </span>
+            </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine: </span>
+    
+    <a title="valine" href="/2023/02/09/NeuralODE/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2023/02/09/NeuralODE/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>因为想学习Neural ODE视角下的diffusion方法，所以先从入门Neural
+ODE开始。本篇文章从ODE的定义开始，通过Euler数值法求解ODE与ResNet架构之间的关系引出Neural
+ODE，并推导其训练所需的reverse-time算法。<a id="more"></a></p>
+<h2 id="一ordinary-differential-equation-ode">一、Ordinary Differential
+Equation (ODE)</h2>
+<p>常微分方程（ordinary differential equation,
+ODE）是未知函数只含有一个自变量的微分方程，例如简单的一阶常微分方程有以下形式：
+<span class="math display">\[
+y&#39;(t) = f(t, y), y(t_0) = y_0
+\]</span> 其中<span class="math inline">\(y(t)\)</span>表示<span
+class="math inline">\(y\)</span>是以<span
+class="math inline">\(t\)</span>为自变量的函数，<span
+class="math inline">\(y&#39;(t)\)</span>是其导数，通常会需要给出某点的初值<span
+class="math inline">\(y_0\)</span>，才能解出<span
+class="math inline">\(y(t)\)</span>。当<span class="math inline">\(f(x,
+y)\)</span>取某些特定形式的时候，我们可以得到<span
+class="math inline">\(y(t)\)</span>的解析解，例如<span
+class="math inline">\(f(t, y) = y(t)\)</span>，我们知道<span
+class="math inline">\(y(t) = Ae^{t}\)</span>是满足条件的，其中<span
+class="math inline">\(A\)</span>为待定系数，通过代入给定的初值即可得到。但是大多数时候，<span
+class="math inline">\(f(t, y)\)</span>比较复杂，
+无法求得解析解。幸运的是，很多场景中我们的目标只是能够在给定<span
+class="math inline">\(t\)</span>时获得<span
+class="math inline">\(y(t)\)</span>的取值即可，因此只需要数值解。在给定初值时，任意一点<span
+class="math inline">\(t\)</span>处的<span
+class="math inline">\(y(t)\)</span>取值可以由积分得到： <span
+class="math display">\[
+y(t) = y(t_0) + \int_{t_0}^t y&#39;(t)dt = y_0 + \int_{t_0}^t f(t,y)dt
+\]</span></p>
+<h2 id="二euler法与resnet">二、Euler法与ResNet</h2>
+<p>ODE的数值解法是已经被广泛探索的领域，本质就是各种求<span
+class="math inline">\(\int_{t_0}^t f(t,
+y)dt\)</span>的数值方法，但之所以想到用ODE来进行数据建模，还是因为最基本的Euler法。Euler法把积分区间<span
+class="math inline">\([t_0,
+t]\)</span>平均分成若干片段，把积分过程变为在切线方向上逐步前进的过程（类似将区间分割为若干足够小的分区间求和的数值积分方法）。</p>
+<p><img src="Euler_method.png" alt="euler" style="zoom:20%;" /></p>
+<p>令片段长度为<span class="math inline">\(\delta\)</span>，则<span
+class="math inline">\(t_{n+1} = t_n +
+\delta\)</span>，由一阶近似方法可以得到： <span class="math display">\[
+y(t_{n+1}) = y(t_n) + (t_{n+1} - t_n) y&#39;(t_n) = y(t_n) + \delta f(t,
+y(t_n))
+\]</span> 显然，<span
+class="math inline">\(h\)</span>越小，即分割的片段越多，则得到的结果越精确。而如果我们仔细看递推表达式，会发现与ResNet的定义形式非常相似：
+<span class="math display">\[
+\begin{split}
+\text{Euler Method}:&amp;~y(t_{n+1}) = y(t_n) + \delta f(t, y(t_n)) \\
+\text{ResNet}:&amp;~h_{t+1} = h_t + f(\theta_t, h_t)
+\end{split}
+\]</span> 其中<span class="math inline">\(h_t\)</span>为第<span
+class="math inline">\(t\)</span>层的隐状态，<span
+class="math inline">\(f\)</span>是前向网络，<span
+class="math inline">\(\theta_t\)</span>为第<span
+class="math inline">\(t\)</span>层的网络权重。如此相似的形式告诉我们ResNet一定程度上可以看作是在用Euler法求解ODE初值问题，其中积分域<span
+class="math inline">\(t\)</span>是离散的，在ResNet中代表网络的深度。但有一点不同的是，ResNet每层的权重不一样，对应的ODE中的<span
+class="math inline">\(f\)</span>每层都不同，因此只能说是形式上的相近。</p>
+<h2 id="三neural-ode">三、Neural ODE</h2>
+<h3 id="定义">1. 定义</h3>
+<p>那很自然的，我们会想到用ODE来做更高层次的抽象，用神经网络来表达<span
+class="math inline">\(f(t, y(t_n))\)</span>，或者说<span
+class="math inline">\(f(t, h(t_n),
+\theta)\)</span>，则整个过程可以表示为： <span class="math display">\[
+y = \text{ODESolver}(h(t_0), f, t_0, t_1, \theta), h(t_0) =
+\text{embed}(x)
+\]</span> 其中<span
+class="math inline">\(h(t_0)\)</span>为初值条件，是根据输入<span
+class="math inline">\(x\)</span>变换得到的（e.g. embedding过程），<span
+class="math inline">\(t_0\)</span>与<span
+class="math inline">\(t_1\)</span>是积分上下限的超参（但是也可以做成可训练的），<span
+class="math inline">\(\theta\)</span>指模型<span
+class="math inline">\(f\)</span>的参数。而<span
+class="math inline">\(\text{ODESolver}\)</span>则可以使用各种各样的求解器，前文所述的Euler法就是最基础的一种。使用ODE的视角做建模有两个非常显著的优势：</p>
+<ul>
+<li><strong>Memory
+efficient</strong>：ODE视角只需要用一个网络来建模导数，因此只需要一组参数，而ResNet这样的则是每层都有独立的参数。另外，在训练中，ODE的reverse算法与前向算法一致，都只需求解一次ODE，因此也不需要存储中间状态（下文再展开），可以大幅减少训练的内存需求。</li>
+<li><strong>Adaptive computation</strong>：很多先进的<span
+class="math inline">\(\text{ODESolver}\)</span>都能对递推步数（一定程度上可以理解为模型深度）根据<span
+class="math inline">\(f\)</span>的各种性质进行动态调整，因此模型的计算复杂度能够自适应地根据问题的复杂度调整。</li>
+</ul>
+<h3 id="训练">2. 训练</h3>
+<p>如果仍然使用backpropagation算法计算梯度来进行训练的话，内存占用会非常大，因为需要记录每一步的中间输出，而且传导过程可能与具体采用的<span
+class="math inline">\(\text{ODESolver}\)</span>算法有关。而伴随灵敏度方法（adjoint
+sensitivity
+method）可以很优雅地解决这个问题，它将梯度计算的流程划归到与前向计算一致，都只需求解一次ODE，因此不仅内存占用小（不用存中间态），同时也与<span
+class="math inline">\(\text{ODESolver}\)</span>的算法选择解藕。</p>
+<h4 id="adjoint-sensitivity-method">Adjoint sensitivity method</h4>
+<p>整个过程的大致想法是通过伴随状态（adjoint
+state）将计算梯度的过程也变为求解ODE的过程，再将伴随状态的初值与原问题的初值一起输入到<span
+class="math inline">\(\text{ODESolver}\)</span>中，即可在前向求解过程中将梯度与结果一同输出。</p>
+<p><strong>对初值的梯度</strong></p>
+<p>令最终的loss为<span
+class="math inline">\(\mathcal{L}\)</span>，我们先考虑如何求解<span
+class="math inline">\(\frac{\partial \mathcal{L}}{\partial
+h(t_0)}\)</span>（该梯度会用于对输入变换<span
+class="math inline">\(g\)</span>的训练）。首先定义伴随状态（adjoint
+state）： <span class="math display">\[
+a(t) = \frac{\partial \mathcal{L}}{\partial h(t)}
+\]</span> 接下来我们需要得到关于<span
+class="math inline">\(a(t)\)</span>的ODE。当<span
+class="math inline">\(t\)</span>产生<span
+class="math inline">\(\delta\)</span>的变化时，我们有： <span
+class="math display">\[
+a(t) = \frac{\partial \mathcal{L}}{\partial h(t+\delta)}\frac{\partial
+h(t+\delta)}{\partial h(t)} = a(t+\delta)\frac{\partial
+h(t+\delta)}{\partial h(t)}
+\]</span> 根据<span class="math inline">\(h(t+\delta) = h(t) +
+\int_{t}^{t+\delta} f(s, h(s), \theta)ds\)</span>，我们可以进一步得到：
+<span class="math display">\[
+\begin{split}
+a(t) &amp;= a(t + \delta) \frac{\partial}{\partial h(t)}(h(t) +
+\int_{t}^{t+\delta} f(s, h(s), \theta)ds) \\
+&amp;= a(t+\delta)[1 + \frac{\partial }{\partial
+h(t)}(\int_{t}^{t+\delta} f(s, h(s), \theta)ds)]
+\end{split}
+\]</span> 因此： <span class="math display">\[
+\begin{split}
+a&#39;(t) &amp;= \lim_{\delta \rightarrow0^+} \frac{a(t+\delta) -
+a(t)}{\delta} \\
+&amp;= \lim_{\delta\rightarrow 0^+} \frac{-a(t+\delta)\frac{\partial
+}{\partial h(t)}(\int_{t}^{t+\delta} f(s, h(s), \theta)ds)}{\delta} \\
+&amp;= -a(t) \frac{\partial f(t, h(t), \theta)}{\partial h(t)}
+\end{split}
+\]</span> 由于<span class="math inline">\(a(t_1)\)</span>即为<span
+class="math inline">\(\mathcal{L}\)</span>关于网络最终输出<span
+class="math inline">\(h(t_1)\)</span>的梯度，是很容易求的，因此可以作为ODE问题的初值，从而得到：
+<span class="math display">\[
+a&#39;(t) =-a(t) \frac{\partial f(t, h(t), \theta)}{\partial h(t)},
+a(t_1) = \frac{\partial \mathcal{L}}{\partial h(t_1)}
+\]</span> 则对于<span class="math inline">\(h(t_0)\)</span>的梯度为：
+<span class="math display">\[
+a(t_0) = \frac{\partial \mathcal{L}}{\partial h(t_0)} = a(t_1) +
+\int_{t_1}^{t_0}-a(t) \frac{\partial f(t, h(t), \theta)}{\partial
+h(t)}dt
+\]</span> <strong>对<span class="math inline">\(\theta\)</span>以及<span
+class="math inline">\(t\)</span>的梯度</strong></p>
+<p>类似的，我们定义对于权重<span
+class="math inline">\(\theta\)</span>以及<span
+class="math inline">\(t\)</span>的伴随状态： <span
+class="math display">\[
+a_\theta(t) = \frac{\partial \mathcal{L}}{\partial \theta(t)}， a_t(t) =
+\frac{\partial \mathcal{L}}{\partial t}
+\]</span> 我们认为权重不随时间而变化，因此有： <span
+class="math display">\[
+\frac{d\theta(t)}{dt} = 0, \frac{dt}{dt} = 1
+\]</span> 接下来的想法非常巧妙，我们之前已经分析了如何通过<span
+class="math inline">\(a(t)\)</span>求解<span
+class="math inline">\(\frac{\partial \mathcal{L}}{\partial
+h(t)}\)</span>，而<span class="math inline">\(f(t, h(t),
+\theta)\)</span>输出的是<span
+class="math inline">\(h&#39;(t)\)</span>，那如果我们对<span
+class="math inline">\(f\)</span>的输出进行扩增，使其同时也能输出<span
+class="math inline">\(\theta&#39;(t)\)</span>和<span
+class="math inline">\((t)&#39;\)</span>，就可以直接把求解<span
+class="math inline">\(\frac{\partial \mathcal{L}}{\partial
+h(t)}\)</span>的过程中一元微积分的内容替换成多元微积分，从而得到结果。即：
+<span class="math display">\[
+[\frac{dh(t)}{dt}, \frac{d\theta(t)}{dt}, \frac{dt}{dt}] = f_{aug}(t,
+h(t), \theta) = [f(t, h(t), \theta), 0, 1]
+\]</span> 类似的，对伴随状态进行扩增： <span class="math display">\[
+a_{aug}(t) = [a(t), a_\theta(t), a_t(t)]
+\]</span>
+扩增后的向量可以看成只是对之前的向量增加了若干维度，因此仍然可以用之前推导的结果：
+<span class="math display">\[
+\begin{split}
+a&#39;_{aug}(t) &amp;= - a_{aug}(t) \frac{\partial f_{aug}}{\partial
+[h(t), \theta(t), t]} \\
+&amp;= - [a(t), a_\theta(t), a_t(t)] \left[\begin{array}{ccc}
+\frac{\partial f}{\partial h(t)} &amp; \frac{\partial f}{\partial
+\theta(t)} &amp; \frac{\partial f}{\partial t} \\
+\frac{\partial 0}{\partial h(t)} &amp; \frac{\partial 0}{\partial
+\theta(t)} &amp; \frac{\partial 0}{\partial t}{} \\
+\frac{\partial 1}{\partial h(t)} &amp; \frac{\partial 1}{\partial
+\theta(t)} &amp; \frac{\partial 1}{\partial t}
+\end{array}\right]\\
+&amp;= - [a(t), a_\theta(t), a_t(t)] \left[\begin{array}{ccc}
+\frac{\partial f}{\partial h(t)} &amp; \frac{\partial f}{\partial
+\theta(t)} &amp; \frac{\partial f}{\partial t} \\
+0&amp;0&amp;0 \\
+0&amp;0&amp;0
+\end{array}\right]\\
+&amp;= - [a(t)\frac{\partial f}{\partial h(t)}, a(t)\frac{\partial
+f}{\partial \theta(t)}, a(t)\frac{\partial f}{\partial t}]
+\end{split}
+\]</span> 而初值是： <span class="math display">\[
+a_{aug}(t_1) = [a(t_1), a_\theta(t_1), a_t(t_1)] = [\frac{\partial
+\mathcal{L}}{\partial h(t_1)}, \frac{\partial \mathcal{L}}{\partial
+\theta(t_1)}, \frac{\partial \mathcal{L}}{\partial t_1}] =
+[\frac{\partial \mathcal{L}}{\partial h(t_1)}, 0, a(t_1)f(t_1, h(t_1),
+\theta)]
+\]</span> 其中<span
+class="math inline">\(\theta\)</span>项的初值为0是因为<span
+class="math inline">\(\theta(t_1)\)</span>并未参与计算（<span
+class="math inline">\(\theta(t_{0})\)</span>用于计算<span
+class="math inline">\(h(t_0 + \delta)\)</span>）。这里<span
+class="math inline">\(t\)</span>的初值在论文中是带负号的，但感觉似乎不应该带负号，目前还没搞明白带负号的原因，github上也有一个<a
+href="https://github.com/rtqichen/torchdiffeq/issues/176">issue</a>讨论这个问题，目前没有讨论结果。</p>
+<p><strong>综合</strong></p>
+<p>将以上综合起来，我们只需要求解augmented后的ODE即可得到梯度： <span
+class="math display">\[
+[\frac{\partial \mathcal{L}}{\partial h(t_0)}, \frac{\partial
+\mathcal{L}}{\partial \theta(t_0)}, \frac{\partial \mathcal{L}}{\partial
+t_0}] = a_{aug}(t_0) = \text{ODESolver}(a_{aug}(t_1), f_{aug}, t_1, t_0,
+\theta)
+\]</span> 之后就可以使用正常的训练过程了。</p>
+<h2 id="参考文献">参考文献</h2>
+<p>[1] <a href="https://ml.berkeley.edu/blog/posts/neural-odes/" target="_blank" rel="noopener">Neural
+ODEs</a></p>
+<p>[2] <a
+href="https://jontysinai.github.io/jekyll/update/2019/01/18/understanding-neural-odes.html">Understanding
+Neural ODEs</a></p>
+<p>[3] <a href="https://arxiv.org/pdf/1806.07366.pdf" target="_blank" rel="noopener">Neural Ordinary
+Differential Equations (NeurIPS 2018)</a></p>
+<p>[4] <a href="https://zhuanlan.zhihu.com/p/337575425" target="_blank" rel="noopener">Understanding
+Adjoint Method of Neural ODE</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Neural-ODE/" rel="tag"># Neural ODE</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/26/PSVAE/" rel="prev" title="Molecule Generation by Principal Subgraph Mining and Assembling">
+      <i class="fa fa-chevron-left"></i> Molecule Generation by Principal Subgraph Mining and Assembling
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+        </div>
+        
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2020 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">kxz18</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a>
+  </div>
+
+  <div class="busuanzi-count">
+	<script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	<span class="site-uv" title="total visitors">
+      <i class="fa fa-user"></i><span id="busuanzi_container_site_uv">
+      <span id="busuanzi_value_site_uv"></span></span>
+	</span>
+	<span class="site-pv" title="total views">
+      <i class="fa fa-eye"></i><span id="busuanzi_container_site_pv">
+      <span id="busuanzi_value_site_pv"></span></span>
+	</span>
+  </div>
+<style type="text/css">
+.site-uv, .site-pv {
+	display: inline-block;
+	margin-left: 5px;
+	margin-right: 5px
+}
+</style>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/valine@1/dist/Valine.min.js', () => {
+    new Valine(Object.assign({
+      el  : '#valine-comments',
+      path: location.pathname,
+    }, {"enable":true,"appId":"fm2dUW5RiRLTSk9dALMSDd3D-gzGzoHsz","appKey":"vaCgwC4qJVTTnfuKjXgiWezL","placeholder":"Say anything ...","avatar":"mm","meta":["nick","mail","link"],"pageSize":10,"language":null,"visitor":false,"comment_count":true,"recordIP":false,"serverURLs":null}
+    ));
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>
