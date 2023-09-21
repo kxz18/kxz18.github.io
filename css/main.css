@@ -1341,7 +1341,7 @@ pre code {
 }
 .links-of-author a::before,
 .links-of-author span.exturl::before {
-  background: #ff6fff;
+  background: #f5dd46;
   border-radius: 50%;
   content: ' ';
   display: inline-block;
@@ -2379,6 +2379,22 @@ ul.breadcrumb li + li:last-child {
 .tag-cloud-10 {
   border-bottom-color: #111;
   color: #111;
+}
+.twocolumn-box {
+  overflow: hidden;
+}
+.twocolumn-left {
+  float: left;
+  width: 280px;
+  background-color: #fff;
+}
+.twocolumn-right {
+  margin-left: 310px;
+  background-color: #fff;
+}
+.intro-card {
+  font-size: 14px;
+  background-color: #fff;
 }
 .search-active {
   overflow: hidden;

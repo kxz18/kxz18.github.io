@@ -1,767 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>GNN（一）：图的表征学习</title>
-    <url>/2020/06/24/GNNrepr/</url>
-    <content><![CDATA[<p>机器学习的第一件事是需要将训练所用的未处理的数据（raw
-data）转化为具有一定格式的数据（structured
-data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word
-embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如
-word embedding
-所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。<a id="more"></a></p>
-<h2 id="一embedding-nodesnode2vec">一、Embedding Nodes（node2vec）</h2>
-<p>将节点通过一个编码器（encoder）映射为高维空间的向量来表示节点。映射后的向量需要满足的条件是：两个节点对应的向量能反应这两个节点在原图中的相似性。向量的相似性即两者的夹角，因此可以用点乘来的值来表示。如果需要表示的节点为<span
-class="math inline">\(u,v\)</span>，而经 encoder 得到的向量为<span
-class="math inline">\(\bf{z_v},\bf{z_u}\)</span>，则应满足： <span
-class="math display">\[
-similarity(u, v)\approx \bf{z_v}^T\bf{z_u}
-\]</span> 因此图中节点的表示学习的方法就可以用三个步骤表示：</p>
-<ol type="1">
-<li>定义一个 encoder，用来将节点的 one-hot 编码映射成固定维度的向量</li>
-<li>定义一个描述原图中两个节点相似性的函数 <span
-class="math inline">\(similarity\)</span></li>
-<li>优化 encoder 中的参数使得最后符合 <span
-class="math inline">\(similarity(u, v)\approx
-\bf{z_v}^T\bf{z_u}\)</span></li>
-</ol>
-<h3 id="定义-encoder">1. 定义 encoder</h3>
-<p>此部分比较简单，参考NLP中的 word embedding，只需要对 one-hot
-的编码进行矩阵乘即可。 <span class="math display">\[
-\begin{array}{cc}
-v \in \mathbb{I}^{|V|}\\
-\bf{Z} \in\mathbb{R}^{d\times |V|}
-\end{array}
-\]</span> 则对应节点 <span class="math inline">\(v\)</span>
-的嵌入向量为： <span class="math display">\[
-\mathbf{z_v} =\mathbf{Z} v,\ \mathbf{z_v}\in \mathbb{R}^d
-\]</span> 这样的方法其实相当于 embedding 矩阵 <span
-class="math inline">\(\mathbf{Z}\)</span>
-的每一列就对应一个节点的表示向量。维度 <span
-class="math inline">\(d\)</span> 是超参，在网络构建前确定。</p>
-<h3 id="定义-similarity">2. 定义 similarity</h3>
-<p>这部分是节点表示学习的关键，不同的 similarity
-定义的方法会带来不同的损失函数，节点最后的表示向量的适用任务也不一样。比较容易想到的有两种定义
-similarity 的方法：</p>
-<ol type="1">
-<li>两个点相互连接则定义为相似（Adjaceny-based）</li>
-<li>两个点的共同的邻居数量表示相似程度（Multi-hop similarity
-definations）</li>
-</ol>
-<p>但这两种显然都只是考虑了图的局部性质，有比较大的局限性。因此更常用的方法是
-Random Walk Approaches。</p>
-<h4 id="random-walk-approaches">Random Walk Approaches</h4>
-<h5 id="原理">原理</h5>
-<p>首先定义什么叫 <strong>random
-walk</strong>：在给定的图中选定一个点<span
-class="math inline">\(v\)</span>为起点，随机选择其邻接的点<span
-class="math inline">\(v_1\)</span>作为下一个点，再随机选择<span
-class="math inline">\(v_1\)</span>邻接的点<span
-class="math inline">\(v_2\)</span>作为下一个点，直到路径达到指定的长度。这样随机选出的一个点序列称为一个
-<strong>random walk</strong>。</p>
-<p>那么可以定义两点（<span
-class="math inline">\(u,v\)</span>）之间的相似度为这两点出现在同一条
-<strong>random walk</strong> 中的概率。</p>
-<p>使用这种定义方法的好处是同时考虑到了局部和全局的相似关系，因为根据不同的随机策略以及不同的路径长度可以均衡关注局部和关注全局的两种倾向。同时也不需要考虑所有的点对，只需要考虑在随机过程中每条<strong>random
-walk</strong> 中出现的点对即可。</p>
-<h5 id="生成策略">生成策略</h5>
-<p>最简单的生成策略是固定路径的长度，每次随机一个邻接的点作为下一步。但这样的方式过于简单，无法对其的
-focus 进行人工调整。因此在 node2vec
-的实现当中，使用的是有偏的选择道路的方式（Biased Walks）。</p>
-<p>两种经典的有偏的选择道路的方式即广度优先（BFS）和深度优先（DFS）。可以很明显地看出来，广度优先更聚焦于局部（Local）的节点连接状况（Micro-view
-of
-Neighborhood），深度优先则更关注全局（Global）的节点连接状况（Macro-view
-of
-Neighborhood）。与一个点连接的周围点根据其性质分为三种情况：前一个节点，距离起点一样的节点，距离起点更远的节点。</p>
-<p><img src="three_types_of_point.png" alt="types" style="zoom:50%;" /></p>
-<p>为了平衡这些关系，node2vec 在实现中定义了两个超参：</p>
-<ul>
-<li>p：return parameter，描述返回上一节点的概率</li>
-<li>q：in-out parameter，描述局部和全局的平衡</li>
-</ul>
-<p>以<span
-class="math inline">\(1、\frac{1}{q}、\frac{1}{p}\)</span>来表示前往更近的节点、前往更远的节点、返回前一节点的概率（还没有归一化）。例如对以下的图，<span
-class="math inline">\(s_1\)</span>为父节点，<span
-class="math inline">\(s_2\)</span>为距起点<span
-class="math inline">\(u\)</span>距离为2的点，<span
-class="math inline">\(s_3\)</span>和<span
-class="math inline">\(s_4\)</span>为距起点距离为3的点，当前点为<span
-class="math inline">\(w\)</span>，则前往<span
-class="math inline">\(s_2\)</span>的概率为<span
-class="math inline">\(\frac{1}{1+\frac{1}{p}+2\times
-\frac{1}{q}}\)</span>。</p>
-<p><img src="probability.png" alt="pro" style="zoom:50%;" /></p>
-<p>可以见到，越低的<span
-class="math inline">\(p\)</span>值，越倾向于关注局部，越低的<span
-class="math inline">\(q\)</span>值，越倾向于全局。给定不同的参数值，就可以对节点表示学习的关注点进行调节。</p>
-<h3 id="参数优化optimization">3. 参数优化（Optimization）</h3>
-<p>要使用梯度下降的方法进行训练，首先需要得到一个目标的损失函数。</p>
-<h4 id="损失函数loss">损失函数（Loss）</h4>
-<p>以 <span class="math inline">\(N_R(u)\)</span> 表示以方法 <span
-class="math inline">\(R\)</span> 得到的点 <span
-class="math inline">\(u\)</span> 的邻居点集合，这些邻居点被认为是和点
-<span class="math inline">\(u\)</span>
-有一定程度相似的（邻居点不一定是邻接的点）。例如方法 <span
-class="math inline">\(R\)</span> 为 random walk approaches 时，<span
-class="math inline">\(N_R(u)\)</span> 表示的就是在点 <span
-class="math inline">\(u\)</span> 出现的所有 random walk
-中的其他点的集合。注意这个集合中是允许出现重复点的，例如在 random walk
-approaches 中可能随机到往回走，这样某个点就可能多次被走到。</p>
-<p>则优化目标应该是最大化给定各个点，<span
-class="math inline">\(N_R\)</span>中的点是它们的邻居点的条件概率，同样用取
-log 的方式将乘法变成加法： <span class="math display">\[
-\max_z\sum_{u\in V}\log P(N_R(u)|u)
-\]</span> 用 softmax 方法进行点<span
-class="math inline">\(v\)</span>是点<span
-class="math inline">\(u\)</span>的邻居点的条件概率计算，则对应的损失函数为：
-<span class="math display">\[
-\begin{array}{cc}
-\mathcal L = \sum_{u\in V}\sum_{v \in N_R(u)}-\log P(v|\mathbf{z_u})\\
-其中\ P(v|\mathbf{z_u}) =
-\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
-V}\mathbf{z_u}^T\mathbf{z_n}}
-\end{array}
-\]</span></p>
-<h4 id="负采样negative-sampling简化">负采样（Negative
-Sampling）简化</h4>
-<p>但是这么做对loss的计算复杂度是非常高的，在最外面的求和符号是<span
-class="math inline">\(O(|V|)\)</span>的循环次数，在计算 softmax
-的时候又需要循环 <span class="math inline">\(O(|V|)\)</span> 次，总共是
-<span class="math inline">\(O(|V|^2)\)</span>
-的复杂度。因此在实际使用中采取负采样（negative
-sampling）的方法进行近似（注意是效果上的近似，并不能靠数学公式推导得出）：
-<span class="math display">\[
-\begin{array}{cc}
-\log(\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
-V}\mathbf{z_u}^T\mathbf{z_n}})\approx \log(\sigma
-(\mathbf{z_u}^T\mathbf{z_v}))) - \sum_{i=1}^k \log
-(\sigma(\mathbf{z_u}^T\mathbf{z_{n_i}}))) \\
-其中\ \sigma\ 是 sigmoid 函数 f(x) =
-\frac{1}{1+e^{-x}}，n_i是在所有点的编号中进行随机选取的编号
-\end{array}
-\]</span>
-严格来说约等号的两侧是不同的函数，但优化后者一定程度上和优化前者得到的效果是一样的。负采样的思想是得到一个点的“真实得分”，再加上一些“噪声”作为最后的得分。这也就是为什么需要加用sigmoid函数，因此sigmoid函数可以把实数映射到<span
-class="math inline">\((0, 1]\)</span>区间，正好作为概率的代表。其中<span
-class="math inline">\(k\)</span>的取值越大，训练的结果泛化能力越强，一般情况下<span
-class="math inline">\(k\)</span>取 5～20。</p>
-<h2 id="二embedding-entire-graph">二、Embedding Entire Graph</h2>
-<p>有了对节点的表示学习之后，还可以进一步对一张图（整图或子图）进行编码。常见的也有三种方法。</p>
-<h3 id="加和平均">1. 加和/平均</h3>
-<p>首先使用 node2vec
-方法编码每个节点，再将需要编码的图中的每个节点的编码加和或取平均作为图的编码。</p>
-<h3 id="超节点super-node表示">2. 超节点（super-node）表示</h3>
-<p>新增一个超节点（super-node），该节点与需要表示的图中的每个节点都连有一条边，再进行一次
-node2vec 操作，用这个节点的编码来表示图的编码。</p>
-<h3 id="anonymous-walk-embedding">3. Anonymous Walk Embedding</h3>
-<p>继续使用 <strong>random walk approaches</strong>
-的想法，对于相同形式的 <strong>random
-walk</strong>，将它们归为同一类。例如某一个路径为<span
-class="math inline">\(A - B - A - C\)</span>，另一条路径为<span
-class="math inline">\(D-A-D-F\)</span>，两条路径的模式均为<span
-class="math inline">\(1-2-1-3\)</span>，则归为同一类，这就是一个
-<strong>Anonymous
-Walk</strong>。给定路径长作为超参，枚举所有路径模式及其出现频率，用最大似然法近似这些模式的分布，得到图的编码。</p>
-<p>这种想法的缺点在于枚举所有的路径非常耗时，当路径长增长时复杂度是指数增长的。因此另一种想法是对路径模式进行采样，随机产生
-<span class="math inline">\(m\)</span> 条 <strong>random walk</strong>
-并计算它们的路径模式，用以近似真实的路径模式分布。其中要使误差超过<span
-class="math inline">\(\varepsilon\)</span>的小于<span
-class="math inline">\(\delta\)</span>时需要的采样数 <span
-class="math inline">\(m\)</span> 满足： <span class="math display">\[
-\begin{array}{cc}
-m=\lceil\frac{2}{\varepsilon^2}(\log (2^\eta - 2)-\log(\delta)) \rceil\\
-其中\log以e为底，\eta 为给定路径长下路径模式的总种类数
-\end{array}
-\]</span></p>
-<p>除此之外，还有一种想法是直接将 Anonymous Walk 编码，使一个由多个
-Anonymous Walk 组成的序列变得可预测。具体内容参见文献：<a
-href="https://arxiv.org/pdf/1805.11921.pdf">Anonymous Walk Embeddings,
-ICML 2018</a>。</p>
-<h2 id="reference">Reference</h2>
-<p>[1] <a
-href="http://web.stanford.edu/class/cs224w/slides/07-noderepr.pdf">Stanford
-CS224W: Machine Learning with Graphs，Lecture 7 - Graph Representation
-Learning</a></p>
-]]></content>
-      <categories>
-        <category>学习</category>
-      </categories>
-      <tags>
-        <tag>GNN</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>基础Diffusion生成模型与DDPM</title>
-    <url>/2022/06/19/Diffusion/</url>
-    <content><![CDATA[<p>目前基于diffusion的生成模型已经逐渐从CV迁移到其他领域，并均展现出不错的效果。正好最近研究项目是生成式的任务，就想应该学习一下diffusion，说不定可以有不错的效果。打算分两篇文章对这个领域的基础知识进行记录，本篇先讲解最基础的diffusion
-model (<a href="https://arxiv.org/abs/1503.03585" target="_blank" rel="noopener">Sohl-Dickstein et al.,
-2015</a>)，再学习denoising diffusion probabilistic model (<a
-href="https://arxiv.org/abs/2006.11239">Ho et al. 2020</a>,
-DDPM)及对其的优化 (<a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol
-&amp; Dhariwal, 2021</a>)。下一篇讲解抽象程度更高的denoising diffusion
-implicit model (<a href="https://arxiv.org/abs/2010.02502" target="_blank" rel="noopener">Song et al.,
-2020</a>, DDIM)和分析逆向过程最优方差的论文 (<a
-href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
-Analytic-DPM)。<a id="more"></a></p>
-<h2 id="一diffusion-model">一、Diffusion Model</h2>
-<h3 id="概述">1. 概述</h3>
-<p>Diffusion的思想是通过一个前向的扩散过程将复杂的真实数据分布转换为一个简单、易处理的分布（例如正态分布），之后通过有限步的逆过程还原真实数据的分布。如图1，真实数据<span
-class="math inline">\(\mathbf{x}_{0}\)</span>经过总过<span
-class="math inline">\(T\)</span>步加服从正态分布的噪音的过程得到<span
-class="math inline">\(\mathbf{x}_T\)</span>，<span
-class="math inline">\(\mathbf{x}_T\)</span>服从标准正态分布<span
-class="math inline">\(\mathcal{N}(\mathbf{0},
-\mathbf{I})\)</span>。而模型学习逆向的转移概率<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>，从标准正态分布中采样的<span
-class="math inline">\(\mathbf{x}_T\)</span>开始，逐步生成真实数据。训练目标则是生成的数据分布和真实数据分布尽可能相似。整个生成过程因为存在随机性，所以即使初始的<span
-class="math inline">\(\mathbf{x}_T\)</span>是一样的，在采样的过程中分歧会越来越大，最后得到完全不一样的结果。</p>
-<p><img src="overview.png" alt="overview" style="zoom:50%;" /></p>
-<center>
-<div
-style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
-图1：diffusion过程的概述（图片来自<a url="https://arxiv.org/abs/2006.11239">Ho
-et al. 2020</a>）
-</div>
-</center>
-<h3 id="前向过程">2. 前向过程</h3>
-<p>前向过程的目标是通过不断加噪音将复杂的真实数据分布转换为简单易处理的分布（例如标准正态分布）。其中加入噪音服从的分布种类决定了最后转换成的分布种类，这里以正态分布为例，原论文也讨论了二项分布的情形。给定从真实分布<span
-class="math inline">\(q(\mathbf{x}_0)\)</span>中抽样出的数据点<span
-class="math inline">\(\mathbf{x}_0\)</span>，我们在总共<span
-class="math inline">\(T\)</span>步的迭代中逐步加入高斯噪音，每步高斯噪音的方差由序列<span
-class="math inline">\(\{\beta_t \in (0,
-1)\}_{t=1}^T\)</span>决定。显然每步加入噪音后的结果<span
-class="math inline">\(q(\mathbf{x}_t |
-\mathbf{x}_{t-1})\)</span>都是服从正态分布的，我们令这些正态分布满足以下公式：
-<span class="math display">\[
-q(\pmb{x}_t | \pmb{x}_{t-1}) =
-\mathcal{N}(\sqrt{1-\beta_t}\pmb{x}_{t-1}, \beta_t \pmb{I})
-\]</span> 我们认为整个过程是Markov过程，即第<span
-class="math inline">\(t\)</span>步的分布只与第<span
-class="math inline">\(t-1\)</span>步的分布有关，则整个前向过程的概率为：
-<span class="math display">\[
-q(\pmb{x}_{1:T}|\pmb{x}_0) = \prod_{t=1}^T q(\pmb{x}_t | \pmb{x}_{t-1})
-\]</span> 事实上我们可以从<span
-class="math inline">\(\mathbf{x}_0\)</span>推导出任意一步结果的分布<span
-class="math inline">\(q(\mathbf{x}_t|\mathbf{x}_0)\)</span>，我们令<span
-class="math inline">\(\alpha_t = 1 - \beta_t\)</span>，<span
-class="math inline">\(\bar{\alpha_t} = \prod_{i=1}^t
-\alpha_i\)</span>，<span class="math inline">\(\mathbf{\epsilon} \sim
-\mathcal{N}(\mathbf{0}, \mathbf{I})\)</span>则： <span
-class="math display">\[
-\begin{split}
-\pmb{x}_t &amp;\sim \sqrt{\alpha_t} \pmb{x}_{t-1} + \sqrt{1 - \alpha_t}
-\pmb{\epsilon}\notag\\
-&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{\alpha_t(1 -
-\alpha_{t-1})}\pmb{\epsilon} +  \sqrt{1 - \alpha_t}
-\pmb{\epsilon}\notag\\
-&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{1 -
-\alpha_t\alpha_{t-1}}\pmb{\epsilon}\\
-&amp;= ...\notag\\
-&amp;=\sqrt{\bar{\alpha}_t}\pmb{x}_0 +
-\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon} \notag\\
-&amp;= \mathcal{N}(\sqrt{\bar{\alpha}_t}\pmb{x}_0, (1-\bar{\alpha}_t)
-\pmb{I}) \notag
-\end{split}
-\]</span></p>
-<blockquote>
-<p>注意两个正态分布<span class="math inline">\(\mathcal{N}(\mathbf{0},
-\sigma_1^2\mathbf{I})\)</span>，<span
-class="math inline">\(\mathcal{N}(\mathbf{0},
-\sigma_2^2\mathbf{I})\)</span>之和为<span
-class="math inline">\(\mathcal{N}(\mathbf{0},
-(\sigma_1^2+\sigma_2^2)\mathbf{I})\)</span></p>
-</blockquote>
-<p>由于<span class="math inline">\(\beta_t \in (0,
-1)\)</span>，因此可以想象当前向加噪音的步骤<span
-class="math inline">\(T\rightarrow \infty\)</span>时，<span
-class="math inline">\(\bar{\alpha}_T\rightarrow 0\)</span>，所以<span
-class="math inline">\(\mathbf{x}_T\)</span>的分布趋向于标准正态分布<span
-class="math inline">\(\mathcal{N}(\mathbf{0},
-\mathbf{I})\)</span>，这就相当于将复杂的真实数据分布通过加噪音转换为了简单易处理的分布。</p>
-<blockquote>
-<p>需要注意的是方差序列<span class="math inline">\(\{\beta_t \in (0,
-1)\}_{t=1}^T\)</span>在<a
-href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
-2015</a>文中是通过训练得到的，但<a
-href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
-(DDPM)</a>提出直接使用预定义的常数效果更好。</p>
-</blockquote>
-<h3 id="逆向过程">3. 逆向过程</h3>
-<p>逆向过程的目标是通过学习逆向的Markov链的转移概率<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来将转换成的简单分布转换回真实的数据分布。<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>是无法直接解的，因为需要遍历所有<span
-class="math inline">\(\mathbf{x}_{0:t}\)</span>的可能路径才能知道给定<span
-class="math inline">\(\mathbf{x}_t\)</span>时其上一步是<span
-class="math inline">\(\mathbf{x}_{t-1}\)</span>的概率。但我们知道的是当<span
-class="math inline">\(\beta_t\)</span>足够小时，<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>也为正态分布。因此我们需要训练模型<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来拟合这个逆向的转移概率。
-<span class="math display">\[
-p_\theta(\pmb{x}_{t-1}|\pmb{x}_t) =
-\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t),
-\pmb{\Sigma}_\theta(\pmb{x}_t, t))
-\]</span> 而训练的目标是通过模型生成的数据分布<span
-class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>与真实数据分布<span
-class="math inline">\(q(\mathbf{x}_0)\)</span>尽可能相近，即最小化这两个分布的交叉熵<span
-class="math inline">\(-\mathbb{E}_{q(\mathbf{x}_0)}(\log
-p_\theta(\mathbf{x}_0)) = - \int q(\mathbf{x}_0) \log
-p_\theta(\mathbf{x}_0) d\mathbf{x}_0\)</span>（或者说最大化negative
-log-likelihood）。所以接下来的目标是推导这个损失函数的计算方式。首先我们可以得到模型预测下每种逆向diffusion路径（<span
-class="math inline">\(\mathbf{x}_{0:T}\)</span>）的分布<span
-class="math inline">\(p_\theta(\mathbf{x}_{0:T})\)</span>以及预测的数据分布<span
-class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>： <span
-class="math display">\[
-\begin{split}
-p_\theta(\pmb{x}_{0:T}) &amp;= p_\theta(\pmb{x}_T)
-\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)\\
-p_\theta(\pmb{x}_0) &amp;= \int p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}
-\end{split}
-\]</span> 其中模型预测的数据分布<span
-class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>可以理解为通过所有可能的逆向路径得到<span
-class="math inline">\(\mathbf{x}_0\)</span>的概率和（如果是离散变量就是<span
-class="math inline">\(p_\theta(\mathbf{x}_0) = \sum
-p_\theta(\mathbf{x}_{0:T})\)</span>，更好理解一点）。由于原始的损失函数是难以计算的，我们可以用jensen不等式推导交叉熵的upper
-bound（类似VAE的优化思想，在VAE中目标函数是variational lower bound）：
-<span class="math display">\[
-\begin{split}
-\mathcal{L}_{ce} &amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log
-p_\theta(\pmb{x}_0)) \notag\\
-&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int
-p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}) \notag\\
-&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int q(\pmb{x}_{1:T}|\pmb{x}_0)
-\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}
-d\pmb{x}_{1:T}) \notag\\
-&amp;=
--\mathbb{E}_{q(\pmb{x}_0)}(\log\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))
-\notag\\
-&amp;\leq
--\mathbb{E}_{q(\pmb{x}_0)}(\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\log
-\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))\\
-&amp;= -\int \int
-q(\pmb{x}_0)q(\pmb{x}_{1:T}|\pmb{x}_0)\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_0
-d\pmb{x}_{1:T}\notag\\
-&amp;= -\int
-q(\pmb{x}_{0:T})\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_{0:T}\notag\\
-&amp;=-\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}]
-=
-\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]\notag
-\end{split}
-\]</span></p>
-<p>值得注意的是如果将路径<span
-class="math inline">\(\pmb{x}_{1:T}\)</span>看作是隐变量的话，这一形式取负后与variational
-lower bound的形式是一致的（<span class="math inline">\(\mathbb{E}_{Z\sim
-Q}[\log\frac{P(X,Z)}{Q(Z)}]\)</span>），因此其实也可以通过variational
-lower bound的过程推出，这种思路可以参考<a
-href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">这个博客</a>，我们这里就不再推了。进一步地，这一upper
-bound又可以进一步拆成若干KL散度和熵的和： <span class="math display">\[
-\begin{split}
-&amp;\mathcal{L}_{ce} \leq
-\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]
-\\
-&amp;= \mathbb{E}_{q}[\log \frac{\prod_{t=1}^T q(\pmb{x}_t |
-\pmb{x}_{t-1})}{p(\pmb{x}_T)
-\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
-&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \log
-\frac{\prod_{t=1}^T q(\pmb{x}_t |
-\pmb{x}_{t-1})}{\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
-&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
-\frac{q(\pmb{x}_t|\pmb{x}_{t-1})}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)} +
-\log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}] \\
-&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
-\frac{q(\pmb{x}_t|\pmb{x}_{t-1}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t)} + \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
-\pmb{x}_1)}] (\text{Markov过程，独立于$\pmb{x}_0$})\\
-&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
-(\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t)}\cdot\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)})
-+ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
-\pmb{x}_1)}](\text{Bayes公式})\\
-&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
-\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t)}+
-\sum_{t=2}^T\log\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)}
-+ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
-&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
-\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t)} + \log\frac{q(\pmb{x}_T|\pmb{x}_0)}{q(\pmb{x}_1|\pmb{x}_0)}
-+ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
-&amp;= \sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] - \mathbb{E}_q[\log
-p_\theta(\pmb{x}_T)] + \mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] -
-\mathbb{E}_q[\log p_\theta(\pmb{x}_0| \pmb{x}_1)]
-\end{split}
-\]</span> 我们以<span
-class="math inline">\(H\)</span>作为熵的记号，首先看与<span
-class="math inline">\(\mathbf{x}_T\)</span>相关的两项，并将它们合并为<span
-class="math inline">\(\mathcal{L}_T\)</span>： <span
-class="math display">\[
-\begin{split}
-\mathcal{L}_T &amp;= - \mathbb{E}_q[\log p_\theta(\pmb{x}_T)] +
-\mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] \\
-&amp;= H_q(p_\theta(\pmb{x}_T)) - H_q(q(\pmb{x}_T|\pmb{x}_0))\notag
-\end{split}
-\]</span> 由于<span
-class="math inline">\(q\)</span>来源于预定义的方差序列，而<span
-class="math inline">\(\mathbf{x}_T\)</span>是服从标准正态分布的噪音，因此此项为定值，不需要进行优化（如果想要训练得到方差序列，则此项不为0）。对于<span
-class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>一项，<a
-href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
-2015</a>文中表示，为了避免边缘效应，此项设置为前向概率的后验概率： <span
-class="math display">\[
-p_\theta(\pmb{x}_0|\pmb{x}_1) := q(\pmb{x}_0|\pmb{x}_1) =
-q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)}
-\]</span> 因此其期望项<span
-class="math inline">\(\mathcal{L}_0\)</span>只与<span
-class="math inline">\(q\)</span>的分布有关，为一常数（同样，如果需要训练得到方差序列，则此项不为常数）：
-<span class="math display">\[
-\mathcal{L}_0 = -\mathbb{E}_q(\log p_\theta(\pmb{x}_0|\pmb{x}_1)) =
-H_q(q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)})
-\]</span> 而对于最前面的求和的部分，其中的每一项均可以转换为KL散度：
-<span class="math display">\[
-\begin{split}
-&amp;\sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] \notag\\
-&amp;= \sum_{t=2}^T \int q(\pmb{x}_{0:T})\log
-\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t)}d\pmb{x}_{0:T} \notag\\
-&amp;= \sum_{t=2}^T \int q(\pmb{x}_0,
-\pmb{x}_t)D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))d\pmb{x}_0d\pmb{x}_t \\
-&amp;= \sum_{t=2}^T\mathbb{E}_{q(\pmb{x}_0,
-\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \notag\\
-&amp;= \sum_{t=2}^T \mathcal{L}_{t-1} \notag
-\end{split}
-\]</span> 则最后我们的优化目标就变成<span
-class="math inline">\(\mathcal{L}_T + \sum_{t=1}^{T-1} \mathcal{L}_t +
-\mathcal{L}_0\)</span>，且第一项和最后一项在方差序列提前确定的情况下均为常数，在需要训练得到方差序列时也可以较容易地计算，而中间的<span
-class="math inline">\(T-1\)</span>项中，KL散度均为两个正态分布的KL散度，因此是可以有关于这两个正态分布的均值和方差的解析表达式的：
-<span class="math display">\[
-\begin{split}
-&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
-\mathcal{N}(\pmb{\mu}_1, \pmb{\Sigma}_1),\ p_\theta(\pmb{x}_{t-1}|
-\pmb{x}_t) \sim \mathcal{N}(\pmb{\mu}_2, \pmb{\Sigma}_2) \\
-&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
-\frac{1}{2}[(\pmb{\mu}_1 - \pmb{\mu}_2)^T
-\pmb{\Sigma}_2^{-1}(\pmb{\mu}_1 - \pmb{\mu}_2) -
-\log\det(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) +
-\text{Tr}(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) - n]
-\end{split}
-\]</span> <span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差均为模型预测的结果，<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
-\mathbf{x}_0)\)</span>的均值和方差是可以解析计算的（如果没有<span
-class="math inline">\(\mathbf{x}_0\)</span>的条件分布<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>则是无法计算的，这也是为什么要在前面的变形中引入<span
-class="math inline">\(\mathbf{x}_0\)</span>的条件）。我们之前有推导过：
-<span class="math display">\[
-\begin{split}
-&amp;q(\pmb{x}_t | \pmb{x}_{t-1}) =
-\mathcal{N}(\sqrt{\alpha_t}\pmb{x}_{t-1}, \beta_t \pmb{I})\\
-&amp;q(\pmb{x}_t|\pmb{x}_0)= \mathcal{N}(\sqrt{\bar{\alpha_T}}\pmb{x}_0,
-(1-\bar{\alpha_T}) \pmb{I})
-\end{split}
-\]</span> 所以借助正态分布的概率密度函数表达式，我们可以得到： <span
-class="math display">\[
-\begin{split}
-&amp;q(\pmb{x}_{t-1}|\pmb{x}_t, \pmb{x}_0) \\
-&amp;= q(\pmb{x}_t|\pmb{x}_{t-1},
-\pmb{x}_0)\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)} =
-q(\pmb{x}_t|\pmb{x}_{t-1})\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)}(\text{Markov
-chain性质}) \\
-&amp;=
-\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(\pmb{x}_t
-- \sqrt{\alpha_t}\pmb{x}_{t-1})^2}{\beta_t} + \frac{(\pmb{x}_{t-1} -
-\sqrt{\bar{\alpha}_{t-1}}\pmb{x}_0)^2}{1-\bar{\alpha}_{t-1}} -
-\frac{(\pmb{x}_{t} -
-\sqrt{\bar{\alpha}_{t}}\pmb{x}_0)^2}{1-\bar{\alpha}_t})]\\
-&amp;=
-\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(1-\bar{\alpha}_t)}{\beta_t(1-\bar{\alpha}_{t-1})}\pmb{x}_{t-1}^2
-- 2(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
-\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 -
-\bar{\alpha}_{t-1}}\pmb{x}_0)\pmb{x}_{t-1} + C(\pmb{x}_t, \pmb{x}_0))]
-\end{split}
-\]</span> 其中<span class="math inline">\(C(\mathbf{x}_t,
-\mathbf{x}_0)\)</span>是与<span
-class="math inline">\(\mathbf{x}_{t-1}\)</span>无关的项，没有展开写，<span
-class="math inline">\(n\)</span>为<span
-class="math inline">\(\pmb{x}\)</span>的维数。通过以上推导可以看到<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)
-\sim \mathcal{N}(\tilde{\mathbf{\mu}}(\mathbf{x}_t, \mathbf{x}_0),
-\tilde{\beta}_t\mathbf{I})\)</span>： <span class="math display">\[
-\begin{split}
-\tilde{\beta}_t &amp;=
-\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\\
-\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) &amp;=
-(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
-\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 - \bar{\alpha}_{t-1}}\pmb{x}_0) \cdot
-\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)} \\
-&amp;= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1
--\bar{\alpha}_t}\pmb{x}_t +
-\frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1-\bar{\alpha}_t}\pmb{x}_0
-\end{split}
-\]</span> 也就是说，给定<span
-class="math inline">\(\mathbf{x}_0\)</span>和<span
-class="math inline">\(\mathbf{x}_t\)</span>，我们就可以计算出<span
-class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t,
-\mathbf{x}_0)\)</span>所服从的正态分布的均值和方差以及模型预测的<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差，从而算出KL散度<span
-class="math inline">\(D_{KL}(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
-\mathbf{x}_0)||p_\theta(\mathbf{x}_{t-1}|
-\mathbf{x}_t))\)</span>，进而计算损失函数进行梯度下降。训练时<span
-class="math inline">\(\mathbf{x}_0\)</span>与<span
-class="math inline">\(\mathbf{x}_t\)</span>均通过抽样得到。</p>
-<h2 id="二denoising-diffusion-probabilistic-model-ddpm">二、Denoising
-Diffusion Probabilistic Model (DDPM)</h2>
-<p><a href="https://arxiv.org/abs/2006.11239" target="_blank" rel="noopener">Ho et al. 2020
-(DDPM)</a>对最基础的diffusion
-model进行了简化和调整，简化了损失函数并提升了生成质量：</p>
-<ol type="1">
-<li>确定方差序列<span class="math inline">\(\{\beta_t \in (0,
-1)\}_{t=1}^T\)</span>作为超参，而不用训练得到</li>
-<li>简化逆向分布，认为每维之间相互独立，并指定方差值：
-<ul>
-<li>原始diffusion model：<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
-\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
-\mathbf{\Sigma}_\theta(\mathbf{x}_t, t))\)</span></li>
-<li>DDPM：<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
-\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
-\sigma_t^2\mathbf{I})\)</span>，实验中验证了<span
-class="math inline">\(\sigma_t\)</span>的两种取法（<span
-class="math inline">\(\sigma_t^2 =
-\tilde{\beta}_t=\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\)</span>
-/ <span class="math inline">\(\sigma_t^2 =
-\beta_t\)</span>），结果相近。</li>
-</ul></li>
-<li>更好的<span class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
-t)\)</span>参数化方法</li>
-<li>对于<span
-class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>，使用单独的decoder进行预测<span
-class="math inline">\(p_{\theta&#39;}(\mathbf{x}_{0}|\mathbf{x}_1) =
-\mathcal{N}(\mathbf{\mu}_{\theta&#39;}(\mathbf{x}_1, 1),
-\sigma_1^2\mathbf{I})\)</span>，不是简单使用<span
-class="math inline">\(q\)</span>的后验概率</li>
-</ol>
-<p>接下来详细解释这些简化带来的好处。</p>
-<h3 id="目标函数简化">1. 目标函数简化</h3>
-<p>首先因为<span class="math inline">\(\{\beta_t \in (0,
-1)\}_{t=1}^T\)</span>提前确定了，因此<span
-class="math inline">\(\mathcal{L}_T\)</span>与<span
-class="math inline">\(\mathcal{L}_0\)</span>都为常数，不需考虑，而由于对逆向的分布的协方差进行了简化，认为每维之间相互独立了，所以<span
-class="math inline">\(\mathcal{L}_{t-1|t\in[2,
-T]}\)</span>中所涉及的KL散度也可以继续简化： <span
-class="math display">\[
-\begin{split}
-&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
-\mathcal{N}(\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0),
-\tilde{\beta}_t\pmb{I}),\ p_\theta(\pmb{x}_{t-1}| \pmb{x}_t) \sim
-\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t), \sigma_t^2\pmb{I}) \\
-&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
-\frac{1}{2}[\frac{||\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) -
-\pmb{\mu}_\theta(\pmb{x}_t, t)||^2}{\sigma_t^2} -
-\log\det(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) +
-\text{Tr}(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) - n]
-\end{split}
-\]</span> 由于<span
-class="math inline">\(\tilde{\beta}_t\)</span>与<span
-class="math inline">\(\sigma_t^2\)</span>均为超参生成的常数，因此显然KL散度中只有均值差的平方一项是可变的，即<span
-class="math inline">\(t\in[2, T]\)</span>时<span
-class="math inline">\(\mathcal{L}_{t-1}\)</span>变为： <span
-class="math display">\[
-\begin{split}
-\mathcal{L}_{t-1} &amp;= \mathbb{E}_{q(\pmb{x}_0,
-\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
-\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \\
-&amp;= \mathbb{E}_{q(\pmb{x}_0,
-\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
-\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] + C
-\end{split}
-\]</span> 其中<span
-class="math inline">\(C\)</span>为常数，可以舍去，我们令<span
-class="math inline">\(\mathcal{L}_{t-1}&#39; = \mathcal{L}_{t-1} -
-C\)</span>，则去掉所有常数项后新的目标函数<span
-class="math inline">\(\mathcal{L}\)</span>为： <span
-class="math display">\[
-\mathcal{L} = \sum_{t=2}^T \mathcal{L}_{t-1}&#39; = \sum_{t=2}^T
-\mathbb{E}_{q(\pmb{x}_0,
-\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
-\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2]
-\]</span> 这就比之前完整的KL散度的形式简洁明了多了。</p>
-<h3 id="新的参数化方法">2. 新的参数化方法</h3>
-<p>从上面的目标函数可以看出，最基本的参数化方法是设计模型以<span
-class="math inline">\(\mathbf{x}_t\)</span>和<span
-class="math inline">\(t\)</span>为输入，拟合<span
-class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
-\mathbf{x}_0)\)</span>的值，但之前我们有推导过，<span
-class="math inline">\(\mathbf{x}_t\)</span>可以写成<span
-class="math inline">\(\mathbf{x}_0\)</span>与高斯噪音<span
-class="math inline">\(\mathbf{\epsilon}\)</span>的加和形式：<span
-class="math inline">\(\mathbf{x}_t(\mathbf{x}_0, \mathbf{\epsilon})=
-\sqrt{\bar{\alpha}_t}\mathbf{x}_0 +
-\sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon},
-\mathbf{\epsilon}\sim\mathcal{N}(\mathbf{0},
-\mathbf{I})\)</span>，因此我们可以进一步推导<span
-class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
-t)\)</span>需要拟合的函数形式： <span class="math display">\[
-\pmb{\mu}_\theta(\pmb{x}_t, t) = \tilde{\pmb{\mu}}(\pmb{x}_t,
-\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
-\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) =
-\frac{1}{\sqrt{\alpha_t}}(\pmb{x}_t - \frac{\beta_t}{\sqrt{1 -
-\bar{\alpha}_t}}\pmb{\epsilon}_\theta(\pmb{x}_t, t))
-\]</span> 其中<span
-class="math inline">\(\mathbf{\epsilon}_\theta(\mathbf{x}_t,
-t)\)</span>即模型，以<span
-class="math inline">\(\mathbf{x}_t\)</span>和<span
-class="math inline">\(t\)</span>为输入，输出得到<span
-class="math inline">\(\mathbf{x}_t\)</span>的高斯噪音。此时从<span
-class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>中采样<span
-class="math inline">\(\mathbf{x}_{t-1}\)</span>只需计算<span
-class="math inline">\(\mathbf{x}_{t-1} =
-\frac{1}{\sqrt{\alpha_t}}(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 -
-\bar{\alpha}_t}}\mathbf{\epsilon}_\theta(\mathbf{x}_t, t)) + \sigma_t
-\mathbf{z}, \mathbf{z}\sim\mathcal{N}(\mathbf{0},
-\mathbf{I})\)</span>，这个过程中的<span
-class="math inline">\(\mathbf{\epsilon}_\theta\)</span>就非常像Langevin
-dynamics中的下降梯度了。</p>
-<blockquote>
-<p>Langevin dynamics是分子动力学中的概念，从概率分布<span
-class="math inline">\(p(\mathbf{x})\)</span>中经过梯度下降获得稳定的系统状态，更新的方式为<span
-class="math inline">\(\mathbf{x}_t = \mathbf{x}_{t-1} +
-\frac{\epsilon}{2}\nabla_x\log p(\mathbf{x}_{t-1}) + \sqrt{\epsilon}
-\mathbf{z}_t, \mathbf{z}_t \sim \mathcal{N}(\mathbf{0},
-\mathbf{I})\)</span>，但是这个过程中的<span
-class="math inline">\(\mathbf{z}_t\)</span>是用来缓解陷入局部最优的问题的</p>
-</blockquote>
-<p>如果我们可以进一步将此公式代入<span
-class="math inline">\(\mathcal{L}_{t-1}&#39;\)</span>可以得到非常像denoising
-score matching的损失函数： <span class="math display">\[
-\begin{split}
-\mathcal{L}_{t-1}&#39; &amp;= \mathbb{E}_{q(\pmb{x}_0,
-\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
-\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
-&amp;= \mathbb{E}_{q(\pmb{x}_0),
-\pmb{\epsilon}}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
-\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
-\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) -
-\pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
-&amp;= \mathbb{E}_{q(\pmb{x}_0),
-\pmb{\epsilon}}[\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}||\pmb{\epsilon}
-- \pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
-\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2]
-\end{split}
-\]</span></p>
-<blockquote>
-<p>score matching的生成模型模拟Langevin
-dynamics的过程，而每步下降梯度是由神经网络进行预测</p>
-</blockquote>
-<p>根据以上推导，我们可以直接让网络预测<span
-class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
-\mathbf{x}_0)\)</span>，也可以预测噪音<span
-class="math inline">\(\mathbf{\epsilon}\)</span>。虽然两者在数学上是等价的，但实际实验中通常使用后者训练出的网络效果更好。除此之外，原本的训练目标需要遍历所有<span
-class="math inline">\(t \in [2, T]\)</span>，<a
-href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
-(DDPM)</a>发现如果将<span
-class="math inline">\(t\)</span>也改成抽样，并去除权重<span
-class="math inline">\(\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}\)</span>，训练效果会更好，即新的训练目标简化为：
-<span class="math display">\[
-\mathcal{L}_{\text{simple}} = \mathbb{E}_{t, q(\pmb{x}_0),
-\pmb{\epsilon}}[||\pmb{\epsilon} -
-\pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
-\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2], t\sim \mathcal{U}(1, T),
-\pmb{\epsilon}\sim\mathcal{N}(\pmb{0}, \pmb{I})
-\]</span> 其训练和采样生成的过程也变得非常简洁，如下面的伪代码：</p>
-<p><img src="alg.png" alt="overview" style="zoom:50%;" /></p>
-<center>
-<div
-style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
-DDPM训练和采样生成的伪代码（来自<a url="https://arxiv.org/abs/2006.11239">Ho
-et al. 2020</a>）
-</div>
-</center>
-<p>值得一提的是去除权重这一行为使得不同步的<span
-class="math inline">\(\pmb{\epsilon}_\theta(\cdot,
-t)\)</span>是平等的，这也是score
-matching网络的做法。虽然从数学推导上来看会使目标函数的最终效果偏离令<span
-class="math inline">\(q(\pmb{x}_0) =
-p_\theta(\pmb{x}_0)\)</span>，但从优化的角度来看这么做是合理的。因为不同步<span
-class="math inline">\(t\)</span>实际使用的是不同的参数，相互之间没有依赖关系，而它们对应目标函数中的项相互之间只是加权求和的关系，所以令整体最小和使每一项分别最小最后的效果是一样的。</p>
-<h3 id="beta_t的选取">3. <span
-class="math inline">\(\beta_t\)</span>的选取</h3>
-<p>DDPM原文中选取从<span
-class="math inline">\(\beta_1=10^{-4}\)</span>线性增长到<span
-class="math inline">\(\beta_T=0.02\)</span>。<span
-class="math inline">\(\beta_t\)</span>的选取需要是相对于数据的分布是较小的，这样才能保证前向和逆向的过程的分布是类似的形式（图像生成数据归一化到<span
-class="math inline">\([-1, 1]\)</span>）。</p>
-<h2 id="三improved-ddpm">三、Improved DDPM</h2>
-<p><a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol &amp; Dhariwal
-(Improved DDPM， 2021)</a> 的文中提出了若干对DDPM模型的优化方法。</p>
-<p>首先是提出基于cosine进行<span
-class="math inline">\(\beta_t\)</span>的变化： <span
-class="math display">\[
-\beta_t = \text{clip}(1 - \frac{\bar{\alpha}_t}{\bar{\alpha}_{t-1}},
-0.999), \bar{\alpha}_t = \frac{f(t)}{f(0)}, f(t) = \cos (\frac{t/T+s}{1
-+ s}\cdot \frac{\pi}{2})^2
-\]</span> 其中<span
-class="math inline">\(s\)</span>是较小的偏置，防止在<span
-class="math inline">\(t=0\)</span>时<span
-class="math inline">\(\beta_t\)</span>过于小。其次，<a
-href="https://arxiv.org/abs/2102.09672">Nichol &amp; Dhariwal (Improved
-DDPM， 2021)</a> 也提出用模型预测的向量<span
-class="math inline">\(\pmb{v}\)</span>对<span
-class="math inline">\(\beta_t\)</span>和<span
-class="math inline">\(\tilde{\beta}_t\)</span>进行混合来作为逆向过程的方差：
-<span class="math display">\[
-\pmb{\Sigma}_\theta(\pmb{x}_t, t) = \exp(\pmb{v}\log \beta_t + (1 -
-\pmb{v})\log\tilde{\beta}_t)
-\]</span> 因为<span
-class="math inline">\(\mathcal{L}_{\text{simple}}\)</span>是与<span
-class="math inline">\(\pmb{\Sigma}_\theta\)</span>无关的，他们选择将原始的训练目标和DDPM中简化的训练目标进行加权作为新的训练目标：
-<span class="math display">\[
-\mathcal{L}_\text{hybrid} = \mathcal{L}_\text{simple} + \lambda
-\mathcal{L}
-\]</span> 除此之外他们提出通过strided
-sampling的方式加速生成采样，具体而言，每隔<span
-class="math inline">\(\lceil T/S
-\rceil\)</span>步进行一次更新，这样将总共<span
-class="math inline">\(T\)</span>步的采样变为<span
-class="math inline">\(S\)</span>步，每步的方差可以如下计算： <span
-class="math display">\[
-\beta_{S_t} = 1 - \frac{\bar{\alpha}_{S_t}}{\bar{\alpha}_{S_{t-1}}},
-\tilde{\beta}_{S_t}
-=\frac{1-\bar{\alpha}_{S_{t-1}}}{1-\bar{\alpha}_{S_t}}\beta_{S_t}
-\]</span></p>
-<h2 id="后记">后记</h2>
-<p>本篇到此就结束了，记录了基础的diffusion
-model以及由其简化而来的denoising diffusion probabilistic model
-(DDPM)。而DDPM文中也分析了其框架与Langevin dynamics以及score
-matching方法的相似之处。除此之外，也记录了Improved
-DDPM中提出的若干优化。整个过程涉及很多数学推导，需要慢慢看仔细思考才能理解，写完以后大脑cpu温度过高直接去打游戏了。下一篇将讲解抽象程度更高的denoising
-diffusion implicit model (<a
-href="https://arxiv.org/abs/2010.02502">Song et al., 2020</a>,
-DDIM)和DDIM理论最优的<span class="math inline">\(\sigma\)</span>取值(<a
-href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
-Analytic-DPM)。</p>
-<h2 id="参考文献">参考文献</h2>
-<p>[1] <a
-href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">What
-are diffusion models?</a></p>
-<p>[2] <a href="https://arxiv.org/pdf/1503.03585.pdf" target="_blank" rel="noopener">Deep Unsupervised
-Learning using Nonequilibrium Thermodynamics (ICML 2015)</a></p>
-<p>[3] <a href="https://arxiv.org/pdf/2006.11239.pdf" target="_blank" rel="noopener">Denoising
-Diffusion Probabilistic Models (NeurIPS 2020)</a></p>
-<p>[4] <a href="https://arxiv.org/pdf/2102.09672.pdf" target="_blank" rel="noopener">Improved Denoising
-Diffusion Probabilistic Models</a></p>
-]]></content>
-      <categories>
-        <category>学习</category>
-      </categories>
-      <tags>
-        <tag>generation</tag>
-        <tag>diffusion</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>DDIM与最优逆向过程方差</title>
     <url>/2022/06/21/DDIM/</url>
     <content><![CDATA[<p><a
@@ -1339,6 +578,579 @@ Implicit Generative Models</a></p>
       </tags>
   </entry>
   <entry>
+    <title>基础Diffusion生成模型与DDPM</title>
+    <url>/2022/06/19/Diffusion/</url>
+    <content><![CDATA[<p>目前基于diffusion的生成模型已经逐渐从CV迁移到其他领域，并均展现出不错的效果。正好最近研究项目是生成式的任务，就想应该学习一下diffusion，说不定可以有不错的效果。打算分两篇文章对这个领域的基础知识进行记录，本篇先讲解最基础的diffusion
+model (<a href="https://arxiv.org/abs/1503.03585" target="_blank" rel="noopener">Sohl-Dickstein et al.,
+2015</a>)，再学习denoising diffusion probabilistic model (<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020</a>,
+DDPM)及对其的优化 (<a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol
+&amp; Dhariwal, 2021</a>)。下一篇讲解抽象程度更高的denoising diffusion
+implicit model (<a href="https://arxiv.org/abs/2010.02502" target="_blank" rel="noopener">Song et al.,
+2020</a>, DDIM)和分析逆向过程最优方差的论文 (<a
+href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
+Analytic-DPM)。<a id="more"></a></p>
+<h2 id="一diffusion-model">一、Diffusion Model</h2>
+<h3 id="概述">1. 概述</h3>
+<p>Diffusion的思想是通过一个前向的扩散过程将复杂的真实数据分布转换为一个简单、易处理的分布（例如正态分布），之后通过有限步的逆过程还原真实数据的分布。如图1，真实数据<span
+class="math inline">\(\mathbf{x}_{0}\)</span>经过总过<span
+class="math inline">\(T\)</span>步加服从正态分布的噪音的过程得到<span
+class="math inline">\(\mathbf{x}_T\)</span>，<span
+class="math inline">\(\mathbf{x}_T\)</span>服从标准正态分布<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>。而模型学习逆向的转移概率<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>，从标准正态分布中采样的<span
+class="math inline">\(\mathbf{x}_T\)</span>开始，逐步生成真实数据。训练目标则是生成的数据分布和真实数据分布尽可能相似。整个生成过程因为存在随机性，所以即使初始的<span
+class="math inline">\(\mathbf{x}_T\)</span>是一样的，在采样的过程中分歧会越来越大，最后得到完全不一样的结果。</p>
+<p><img src="overview.png" alt="overview" style="zoom:50%;" /></p>
+<center>
+<div
+style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
+图1：diffusion过程的概述（图片来自<a url="https://arxiv.org/abs/2006.11239">Ho
+et al. 2020</a>）
+</div>
+</center>
+<h3 id="前向过程">2. 前向过程</h3>
+<p>前向过程的目标是通过不断加噪音将复杂的真实数据分布转换为简单易处理的分布（例如标准正态分布）。其中加入噪音服从的分布种类决定了最后转换成的分布种类，这里以正态分布为例，原论文也讨论了二项分布的情形。给定从真实分布<span
+class="math inline">\(q(\mathbf{x}_0)\)</span>中抽样出的数据点<span
+class="math inline">\(\mathbf{x}_0\)</span>，我们在总共<span
+class="math inline">\(T\)</span>步的迭代中逐步加入高斯噪音，每步高斯噪音的方差由序列<span
+class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>决定。显然每步加入噪音后的结果<span
+class="math inline">\(q(\mathbf{x}_t |
+\mathbf{x}_{t-1})\)</span>都是服从正态分布的，我们令这些正态分布满足以下公式：
+<span class="math display">\[
+q(\pmb{x}_t | \pmb{x}_{t-1}) =
+\mathcal{N}(\sqrt{1-\beta_t}\pmb{x}_{t-1}, \beta_t \pmb{I})
+\]</span> 我们认为整个过程是Markov过程，即第<span
+class="math inline">\(t\)</span>步的分布只与第<span
+class="math inline">\(t-1\)</span>步的分布有关，则整个前向过程的概率为：
+<span class="math display">\[
+q(\pmb{x}_{1:T}|\pmb{x}_0) = \prod_{t=1}^T q(\pmb{x}_t | \pmb{x}_{t-1})
+\]</span> 事实上我们可以从<span
+class="math inline">\(\mathbf{x}_0\)</span>推导出任意一步结果的分布<span
+class="math inline">\(q(\mathbf{x}_t|\mathbf{x}_0)\)</span>，我们令<span
+class="math inline">\(\alpha_t = 1 - \beta_t\)</span>，<span
+class="math inline">\(\bar{\alpha_t} = \prod_{i=1}^t
+\alpha_i\)</span>，<span class="math inline">\(\mathbf{\epsilon} \sim
+\mathcal{N}(\mathbf{0}, \mathbf{I})\)</span>则： <span
+class="math display">\[
+\begin{split}
+\pmb{x}_t &amp;\sim \sqrt{\alpha_t} \pmb{x}_{t-1} + \sqrt{1 - \alpha_t}
+\pmb{\epsilon}\notag\\
+&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{\alpha_t(1 -
+\alpha_{t-1})}\pmb{\epsilon} +  \sqrt{1 - \alpha_t}
+\pmb{\epsilon}\notag\\
+&amp;= \sqrt{\alpha_t\alpha_{t-1}} \pmb{x}_{t-2} + \sqrt{1 -
+\alpha_t\alpha_{t-1}}\pmb{\epsilon}\\
+&amp;= ...\notag\\
+&amp;=\sqrt{\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon} \notag\\
+&amp;= \mathcal{N}(\sqrt{\bar{\alpha}_t}\pmb{x}_0, (1-\bar{\alpha}_t)
+\pmb{I}) \notag
+\end{split}
+\]</span></p>
+<blockquote>
+<p>注意两个正态分布<span class="math inline">\(\mathcal{N}(\mathbf{0},
+\sigma_1^2\mathbf{I})\)</span>，<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\sigma_2^2\mathbf{I})\)</span>之和为<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+(\sigma_1^2+\sigma_2^2)\mathbf{I})\)</span></p>
+</blockquote>
+<p>由于<span class="math inline">\(\beta_t \in (0,
+1)\)</span>，因此可以想象当前向加噪音的步骤<span
+class="math inline">\(T\rightarrow \infty\)</span>时，<span
+class="math inline">\(\bar{\alpha}_T\rightarrow 0\)</span>，所以<span
+class="math inline">\(\mathbf{x}_T\)</span>的分布趋向于标准正态分布<span
+class="math inline">\(\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，这就相当于将复杂的真实数据分布通过加噪音转换为了简单易处理的分布。</p>
+<blockquote>
+<p>需要注意的是方差序列<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>在<a
+href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
+2015</a>文中是通过训练得到的，但<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
+(DDPM)</a>提出直接使用预定义的常数效果更好。</p>
+</blockquote>
+<h3 id="逆向过程">3. 逆向过程</h3>
+<p>逆向过程的目标是通过学习逆向的Markov链的转移概率<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来将转换成的简单分布转换回真实的数据分布。<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>是无法直接解的，因为需要遍历所有<span
+class="math inline">\(\mathbf{x}_{0:t}\)</span>的可能路径才能知道给定<span
+class="math inline">\(\mathbf{x}_t\)</span>时其上一步是<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>的概率。但我们知道的是当<span
+class="math inline">\(\beta_t\)</span>足够小时，<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>也为正态分布。因此我们需要训练模型<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>来拟合这个逆向的转移概率。
+<span class="math display">\[
+p_\theta(\pmb{x}_{t-1}|\pmb{x}_t) =
+\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t),
+\pmb{\Sigma}_\theta(\pmb{x}_t, t))
+\]</span> 而训练的目标是通过模型生成的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>与真实数据分布<span
+class="math inline">\(q(\mathbf{x}_0)\)</span>尽可能相近，即最小化这两个分布的交叉熵<span
+class="math inline">\(-\mathbb{E}_{q(\mathbf{x}_0)}(\log
+p_\theta(\mathbf{x}_0)) = - \int q(\mathbf{x}_0) \log
+p_\theta(\mathbf{x}_0) d\mathbf{x}_0\)</span>（或者说最大化negative
+log-likelihood）。所以接下来的目标是推导这个损失函数的计算方式。首先我们可以得到模型预测下每种逆向diffusion路径（<span
+class="math inline">\(\mathbf{x}_{0:T}\)</span>）的分布<span
+class="math inline">\(p_\theta(\mathbf{x}_{0:T})\)</span>以及预测的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>： <span
+class="math display">\[
+\begin{split}
+p_\theta(\pmb{x}_{0:T}) &amp;= p_\theta(\pmb{x}_T)
+\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)\\
+p_\theta(\pmb{x}_0) &amp;= \int p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}
+\end{split}
+\]</span> 其中模型预测的数据分布<span
+class="math inline">\(p_\theta(\mathbf{x}_0)\)</span>可以理解为通过所有可能的逆向路径得到<span
+class="math inline">\(\mathbf{x}_0\)</span>的概率和（如果是离散变量就是<span
+class="math inline">\(p_\theta(\mathbf{x}_0) = \sum
+p_\theta(\mathbf{x}_{0:T})\)</span>，更好理解一点）。由于原始的损失函数是难以计算的，我们可以用jensen不等式推导交叉熵的upper
+bound（类似VAE的优化思想，在VAE中目标函数是variational lower bound）：
+<span class="math display">\[
+\begin{split}
+\mathcal{L}_{ce} &amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log
+p_\theta(\pmb{x}_0)) \notag\\
+&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int
+p_\theta(\pmb{x}_{0:T})d\pmb{x}_{1:T}) \notag\\
+&amp;= -\mathbb{E}_{q(\pmb{x}_0)}(\log \int q(\pmb{x}_{1:T}|\pmb{x}_0)
+\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}
+d\pmb{x}_{1:T}) \notag\\
+&amp;=
+-\mathbb{E}_{q(\pmb{x}_0)}(\log\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))
+\notag\\
+&amp;\leq
+-\mathbb{E}_{q(\pmb{x}_0)}(\mathbb{E}_{q(\pmb{x}_{1:T}|\pmb{x}_0)}(\log
+\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}))\\
+&amp;= -\int \int
+q(\pmb{x}_0)q(\pmb{x}_{1:T}|\pmb{x}_0)\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_0
+d\pmb{x}_{1:T}\notag\\
+&amp;= -\int
+q(\pmb{x}_{0:T})\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}d\pmb{x}_{0:T}\notag\\
+&amp;=-\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{p_\theta(\pmb{x}_{0:T})}{q(\pmb{x}_{1:T}|\pmb{x}_0)}]
+=
+\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]\notag
+\end{split}
+\]</span></p>
+<p>值得注意的是如果将路径<span
+class="math inline">\(\pmb{x}_{1:T}\)</span>看作是隐变量的话，这一形式取负后与variational
+lower bound的形式是一致的（<span class="math inline">\(\mathbb{E}_{Z\sim
+Q}[\log\frac{P(X,Z)}{Q(Z)}]\)</span>），因此其实也可以通过variational
+lower bound的过程推出，这种思路可以参考<a
+href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">这个博客</a>，我们这里就不再推了。进一步地，这一upper
+bound又可以进一步拆成若干KL散度和熵的和： <span class="math display">\[
+\begin{split}
+&amp;\mathcal{L}_{ce} \leq
+\mathbb{E}_{q(\pmb{x}_{0:T})}[\log\frac{q(\pmb{x}_{1:T}|\pmb{x}_0)}{p_\theta(\pmb{x}_{0:T})}]
+\\
+&amp;= \mathbb{E}_{q}[\log \frac{\prod_{t=1}^T q(\pmb{x}_t |
+\pmb{x}_{t-1})}{p(\pmb{x}_T)
+\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \log
+\frac{\prod_{t=1}^T q(\pmb{x}_t |
+\pmb{x}_{t-1})}{\prod_{t=1}^Tp_\theta(\pmb{x}_{t-1}|\pmb{x}_t)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_t|\pmb{x}_{t-1})}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)} +
+\log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}] \\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_t|\pmb{x}_{t-1}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)} + \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
+\pmb{x}_1)}] (\text{Markov过程，独立于$\pmb{x}_0$})\\
+&amp;= \mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+(\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}\cdot\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)})
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0|
+\pmb{x}_1)}](\text{Bayes公式})\\
+&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}+
+\sum_{t=2}^T\log\frac{q(\pmb{x}_t|\pmb{x}_0)}{q(\pmb{x}_{t-1}|\pmb{x}_0)}
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
+&amp;=\mathbb{E}_{q}[-\log p_\theta(\pmb{x}_T) + \sum_{t=2}^T \log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)} + \log\frac{q(\pmb{x}_T|\pmb{x}_0)}{q(\pmb{x}_1|\pmb{x}_0)}
++ \log \frac{q(\pmb{x}_1|\pmb{x}_0)}{p_\theta(\pmb{x}_0| \pmb{x}_1)}]\\
+&amp;= \sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] - \mathbb{E}_q[\log
+p_\theta(\pmb{x}_T)] + \mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] -
+\mathbb{E}_q[\log p_\theta(\pmb{x}_0| \pmb{x}_1)]
+\end{split}
+\]</span> 我们以<span
+class="math inline">\(H\)</span>作为熵的记号，首先看与<span
+class="math inline">\(\mathbf{x}_T\)</span>相关的两项，并将它们合并为<span
+class="math inline">\(\mathcal{L}_T\)</span>： <span
+class="math display">\[
+\begin{split}
+\mathcal{L}_T &amp;= - \mathbb{E}_q[\log p_\theta(\pmb{x}_T)] +
+\mathbb{E}_q[\log q(\pmb{x}_T|\pmb{x}_0)] \\
+&amp;= H_q(p_\theta(\pmb{x}_T)) - H_q(q(\pmb{x}_T|\pmb{x}_0))\notag
+\end{split}
+\]</span> 由于<span
+class="math inline">\(q\)</span>来源于预定义的方差序列，而<span
+class="math inline">\(\mathbf{x}_T\)</span>是服从标准正态分布的噪音，因此此项为定值，不需要进行优化（如果想要训练得到方差序列，则此项不为0）。对于<span
+class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>一项，<a
+href="https://arxiv.org/abs/1503.03585">Sohl-Dickstein et al.,
+2015</a>文中表示，为了避免边缘效应，此项设置为前向概率的后验概率： <span
+class="math display">\[
+p_\theta(\pmb{x}_0|\pmb{x}_1) := q(\pmb{x}_0|\pmb{x}_1) =
+q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)}
+\]</span> 因此其期望项<span
+class="math inline">\(\mathcal{L}_0\)</span>只与<span
+class="math inline">\(q\)</span>的分布有关，为一常数（同样，如果需要训练得到方差序列，则此项不为常数）：
+<span class="math display">\[
+\mathcal{L}_0 = -\mathbb{E}_q(\log p_\theta(\pmb{x}_0|\pmb{x}_1)) =
+H_q(q(\pmb{x}_1|\pmb{x}_0)\frac{q(\pmb{x}_0)}{q(\pmb{x}_1)})
+\]</span> 而对于最前面的求和的部分，其中的每一项均可以转换为KL散度：
+<span class="math display">\[
+\begin{split}
+&amp;\sum_{t=2}^T \mathbb{E}_q[\log \frac{q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)}] \notag\\
+&amp;= \sum_{t=2}^T \int q(\pmb{x}_{0:T})\log
+\frac{q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0)}{p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t)}d\pmb{x}_{0:T} \notag\\
+&amp;= \sum_{t=2}^T \int q(\pmb{x}_0,
+\pmb{x}_t)D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))d\pmb{x}_0d\pmb{x}_t \\
+&amp;= \sum_{t=2}^T\mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \notag\\
+&amp;= \sum_{t=2}^T \mathcal{L}_{t-1} \notag
+\end{split}
+\]</span> 则最后我们的优化目标就变成<span
+class="math inline">\(\mathcal{L}_T + \sum_{t=1}^{T-1} \mathcal{L}_t +
+\mathcal{L}_0\)</span>，且第一项和最后一项在方差序列提前确定的情况下均为常数，在需要训练得到方差序列时也可以较容易地计算，而中间的<span
+class="math inline">\(T-1\)</span>项中，KL散度均为两个正态分布的KL散度，因此是可以有关于这两个正态分布的均值和方差的解析表达式的：
+<span class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
+\mathcal{N}(\pmb{\mu}_1, \pmb{\Sigma}_1),\ p_\theta(\pmb{x}_{t-1}|
+\pmb{x}_t) \sim \mathcal{N}(\pmb{\mu}_2, \pmb{\Sigma}_2) \\
+&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
+\frac{1}{2}[(\pmb{\mu}_1 - \pmb{\mu}_2)^T
+\pmb{\Sigma}_2^{-1}(\pmb{\mu}_1 - \pmb{\mu}_2) -
+\log\det(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) +
+\text{Tr}(\pmb{\Sigma}_2^{-1}\pmb{\Sigma}_1) - n]
+\end{split}
+\]</span> <span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差均为模型预测的结果，<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
+\mathbf{x}_0)\)</span>的均值和方差是可以解析计算的（如果没有<span
+class="math inline">\(\mathbf{x}_0\)</span>的条件分布<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>则是无法计算的，这也是为什么要在前面的变形中引入<span
+class="math inline">\(\mathbf{x}_0\)</span>的条件）。我们之前有推导过：
+<span class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_t | \pmb{x}_{t-1}) =
+\mathcal{N}(\sqrt{\alpha_t}\pmb{x}_{t-1}, \beta_t \pmb{I})\\
+&amp;q(\pmb{x}_t|\pmb{x}_0)= \mathcal{N}(\sqrt{\bar{\alpha_T}}\pmb{x}_0,
+(1-\bar{\alpha_T}) \pmb{I})
+\end{split}
+\]</span> 所以借助正态分布的概率密度函数表达式，我们可以得到： <span
+class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_t, \pmb{x}_0) \\
+&amp;= q(\pmb{x}_t|\pmb{x}_{t-1},
+\pmb{x}_0)\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)} =
+q(\pmb{x}_t|\pmb{x}_{t-1})\frac{q(\pmb{x}_{t-1}|\pmb{x}_0)}{q(\pmb{x}_t|\pmb{x}_0)}(\text{Markov
+chain性质}) \\
+&amp;=
+\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(\pmb{x}_t
+- \sqrt{\alpha_t}\pmb{x}_{t-1})^2}{\beta_t} + \frac{(\pmb{x}_{t-1} -
+\sqrt{\bar{\alpha}_{t-1}}\pmb{x}_0)^2}{1-\bar{\alpha}_{t-1}} -
+\frac{(\pmb{x}_{t} -
+\sqrt{\bar{\alpha}_{t}}\pmb{x}_0)^2}{1-\bar{\alpha}_t})]\\
+&amp;=
+\sqrt{\frac{1}{(2\pi)^{n/2}(\frac{\beta_t(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t})^{n/2}}}\exp[-\frac{1}{2}(\frac{(1-\bar{\alpha}_t)}{\beta_t(1-\bar{\alpha}_{t-1})}\pmb{x}_{t-1}^2
+- 2(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 -
+\bar{\alpha}_{t-1}}\pmb{x}_0)\pmb{x}_{t-1} + C(\pmb{x}_t, \pmb{x}_0))]
+\end{split}
+\]</span> 其中<span class="math inline">\(C(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>是与<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>无关的项，没有展开写，<span
+class="math inline">\(n\)</span>为<span
+class="math inline">\(\pmb{x}\)</span>的维数。通过以上推导可以看到<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)
+\sim \mathcal{N}(\tilde{\mathbf{\mu}}(\mathbf{x}_t, \mathbf{x}_0),
+\tilde{\beta}_t\mathbf{I})\)</span>： <span class="math display">\[
+\begin{split}
+\tilde{\beta}_t &amp;=
+\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\\
+\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) &amp;=
+(\frac{\sqrt{\alpha_t}}{\beta_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}}{1 - \bar{\alpha}_{t-1}}\pmb{x}_0) \cdot
+\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)} \\
+&amp;= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1
+-\bar{\alpha}_t}\pmb{x}_t +
+\frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1-\bar{\alpha}_t}\pmb{x}_0
+\end{split}
+\]</span> 也就是说，给定<span
+class="math inline">\(\mathbf{x}_0\)</span>和<span
+class="math inline">\(\mathbf{x}_t\)</span>，我们就可以计算出<span
+class="math inline">\(q(\mathbf{x}_{t-1}|\mathbf{x}_t,
+\mathbf{x}_0)\)</span>所服从的正态分布的均值和方差以及模型预测的<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>的均值和方差，从而算出KL散度<span
+class="math inline">\(D_{KL}(q(\mathbf{x}_{t-1}|\mathbf{x}_{t},
+\mathbf{x}_0)||p_\theta(\mathbf{x}_{t-1}|
+\mathbf{x}_t))\)</span>，进而计算损失函数进行梯度下降。训练时<span
+class="math inline">\(\mathbf{x}_0\)</span>与<span
+class="math inline">\(\mathbf{x}_t\)</span>均通过抽样得到。</p>
+<h2 id="二denoising-diffusion-probabilistic-model-ddpm">二、Denoising
+Diffusion Probabilistic Model (DDPM)</h2>
+<p><a href="https://arxiv.org/abs/2006.11239" target="_blank" rel="noopener">Ho et al. 2020
+(DDPM)</a>对最基础的diffusion
+model进行了简化和调整，简化了损失函数并提升了生成质量：</p>
+<ol type="1">
+<li>确定方差序列<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>作为超参，而不用训练得到</li>
+<li>简化逆向分布，认为每维之间相互独立，并指定方差值：
+<ul>
+<li>原始diffusion model：<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
+\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
+\mathbf{\Sigma}_\theta(\mathbf{x}_t, t))\)</span></li>
+<li>DDPM：<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) =
+\mathcal{N}(\mathbf{\mu}_\theta(\mathbf{x}_t, t),
+\sigma_t^2\mathbf{I})\)</span>，实验中验证了<span
+class="math inline">\(\sigma_t\)</span>的两种取法（<span
+class="math inline">\(\sigma_t^2 =
+\tilde{\beta}_t=\frac{\beta_t(1-\bar{\alpha}_{t-1})}{(1-\bar{\alpha}_t)}\)</span>
+/ <span class="math inline">\(\sigma_t^2 =
+\beta_t\)</span>），结果相近。</li>
+</ul></li>
+<li>更好的<span class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
+t)\)</span>参数化方法</li>
+<li>对于<span
+class="math inline">\(p_\theta(\mathbf{x}_0|\mathbf{x}_1)\)</span>，使用单独的decoder进行预测<span
+class="math inline">\(p_{\theta&#39;}(\mathbf{x}_{0}|\mathbf{x}_1) =
+\mathcal{N}(\mathbf{\mu}_{\theta&#39;}(\mathbf{x}_1, 1),
+\sigma_1^2\mathbf{I})\)</span>，不是简单使用<span
+class="math inline">\(q\)</span>的后验概率</li>
+</ol>
+<p>接下来详细解释这些简化带来的好处。</p>
+<h3 id="目标函数简化">1. 目标函数简化</h3>
+<p>首先因为<span class="math inline">\(\{\beta_t \in (0,
+1)\}_{t=1}^T\)</span>提前确定了，因此<span
+class="math inline">\(\mathcal{L}_T\)</span>与<span
+class="math inline">\(\mathcal{L}_0\)</span>都为常数，不需考虑，而由于对逆向的分布的协方差进行了简化，认为每维之间相互独立了，所以<span
+class="math inline">\(\mathcal{L}_{t-1|t\in[2,
+T]}\)</span>中所涉及的KL散度也可以继续简化： <span
+class="math display">\[
+\begin{split}
+&amp;q(\pmb{x}_{t-1}|\pmb{x}_{t}, \pmb{x}_0) \sim
+\mathcal{N}(\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0),
+\tilde{\beta}_t\pmb{I}),\ p_\theta(\pmb{x}_{t-1}| \pmb{x}_t) \sim
+\mathcal{N}(\pmb{\mu}_\theta(\pmb{x}_t, t), \sigma_t^2\pmb{I}) \\
+&amp;D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t)) =
+\frac{1}{2}[\frac{||\tilde{\pmb{\mu}}(\pmb{x}_t, \pmb{x}_0) -
+\pmb{\mu}_\theta(\pmb{x}_t, t)||^2}{\sigma_t^2} -
+\log\det(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) +
+\text{Tr}(\frac{\tilde{\beta}_t}{\sigma_t^2}\pmb{I}) - n]
+\end{split}
+\]</span> 由于<span
+class="math inline">\(\tilde{\beta}_t\)</span>与<span
+class="math inline">\(\sigma_t^2\)</span>均为超参生成的常数，因此显然KL散度中只有均值差的平方一项是可变的，即<span
+class="math inline">\(t\in[2, T]\)</span>时<span
+class="math inline">\(\mathcal{L}_{t-1}\)</span>变为： <span
+class="math display">\[
+\begin{split}
+\mathcal{L}_{t-1} &amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[D_{KL}(q(\pmb{x}_{t-1}|\pmb{x}_{t},
+\pmb{x}_0)||p_\theta(\pmb{x}_{t-1}| \pmb{x}_t))] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] + C
+\end{split}
+\]</span> 其中<span
+class="math inline">\(C\)</span>为常数，可以舍去，我们令<span
+class="math inline">\(\mathcal{L}_{t-1}&#39; = \mathcal{L}_{t-1} -
+C\)</span>，则去掉所有常数项后新的目标函数<span
+class="math inline">\(\mathcal{L}\)</span>为： <span
+class="math display">\[
+\mathcal{L} = \sum_{t=2}^T \mathcal{L}_{t-1}&#39; = \sum_{t=2}^T
+\mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2]
+\]</span> 这就比之前完整的KL散度的形式简洁明了多了。</p>
+<h3 id="新的参数化方法">2. 新的参数化方法</h3>
+<p>从上面的目标函数可以看出，最基本的参数化方法是设计模型以<span
+class="math inline">\(\mathbf{x}_t\)</span>和<span
+class="math inline">\(t\)</span>为输入，拟合<span
+class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>的值，但之前我们有推导过，<span
+class="math inline">\(\mathbf{x}_t\)</span>可以写成<span
+class="math inline">\(\mathbf{x}_0\)</span>与高斯噪音<span
+class="math inline">\(\mathbf{\epsilon}\)</span>的加和形式：<span
+class="math inline">\(\mathbf{x}_t(\mathbf{x}_0, \mathbf{\epsilon})=
+\sqrt{\bar{\alpha}_t}\mathbf{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon},
+\mathbf{\epsilon}\sim\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，因此我们可以进一步推导<span
+class="math inline">\(\mathbf{\mu}_\theta(\mathbf{x}_t,
+t)\)</span>需要拟合的函数形式： <span class="math display">\[
+\pmb{\mu}_\theta(\pmb{x}_t, t) = \tilde{\pmb{\mu}}(\pmb{x}_t,
+\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) =
+\frac{1}{\sqrt{\alpha_t}}(\pmb{x}_t - \frac{\beta_t}{\sqrt{1 -
+\bar{\alpha}_t}}\pmb{\epsilon}_\theta(\pmb{x}_t, t))
+\]</span> 其中<span
+class="math inline">\(\mathbf{\epsilon}_\theta(\mathbf{x}_t,
+t)\)</span>即模型，以<span
+class="math inline">\(\mathbf{x}_t\)</span>和<span
+class="math inline">\(t\)</span>为输入，输出得到<span
+class="math inline">\(\mathbf{x}_t\)</span>的高斯噪音。此时从<span
+class="math inline">\(p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)\)</span>中采样<span
+class="math inline">\(\mathbf{x}_{t-1}\)</span>只需计算<span
+class="math inline">\(\mathbf{x}_{t-1} =
+\frac{1}{\sqrt{\alpha_t}}(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 -
+\bar{\alpha}_t}}\mathbf{\epsilon}_\theta(\mathbf{x}_t, t)) + \sigma_t
+\mathbf{z}, \mathbf{z}\sim\mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，这个过程中的<span
+class="math inline">\(\mathbf{\epsilon}_\theta\)</span>就非常像Langevin
+dynamics中的下降梯度了。</p>
+<blockquote>
+<p>Langevin dynamics是分子动力学中的概念，从概率分布<span
+class="math inline">\(p(\mathbf{x})\)</span>中经过梯度下降获得稳定的系统状态，更新的方式为<span
+class="math inline">\(\mathbf{x}_t = \mathbf{x}_{t-1} +
+\frac{\epsilon}{2}\nabla_x\log p(\mathbf{x}_{t-1}) + \sqrt{\epsilon}
+\mathbf{z}_t, \mathbf{z}_t \sim \mathcal{N}(\mathbf{0},
+\mathbf{I})\)</span>，但是这个过程中的<span
+class="math inline">\(\mathbf{z}_t\)</span>是用来缓解陷入局部最优的问题的</p>
+</blockquote>
+<p>如果我们可以进一步将此公式代入<span
+class="math inline">\(\mathcal{L}_{t-1}&#39;\)</span>可以得到非常像denoising
+score matching的损失函数： <span class="math display">\[
+\begin{split}
+\mathcal{L}_{t-1}&#39; &amp;= \mathbb{E}_{q(\pmb{x}_0,
+\pmb{x}_t)}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\pmb{x}_0) - \pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0),
+\pmb{\epsilon}}[\frac{1}{2\sigma_t^2}||\tilde{\pmb{\mu}}(\pmb{x}_t,
+\frac{1}{\sqrt{\bar{\alpha}_t}}(\pmb{x}_t -
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}_\theta(\pmb{x}_t, t))) -
+\pmb{\mu}_\theta(\pmb{x}_t, t)||^2] \\
+&amp;= \mathbb{E}_{q(\pmb{x}_0),
+\pmb{\epsilon}}[\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}||\pmb{\epsilon}
+- \pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2]
+\end{split}
+\]</span></p>
+<blockquote>
+<p>score matching的生成模型模拟Langevin
+dynamics的过程，而每步下降梯度是由神经网络进行预测</p>
+</blockquote>
+<p>根据以上推导，我们可以直接让网络预测<span
+class="math inline">\(\tilde{\mathbf{\mu}}(\mathbf{x}_t,
+\mathbf{x}_0)\)</span>，也可以预测噪音<span
+class="math inline">\(\mathbf{\epsilon}\)</span>。虽然两者在数学上是等价的，但实际实验中通常使用后者训练出的网络效果更好。除此之外，原本的训练目标需要遍历所有<span
+class="math inline">\(t \in [2, T]\)</span>，<a
+href="https://arxiv.org/abs/2006.11239">Ho et al. 2020
+(DDPM)</a>发现如果将<span
+class="math inline">\(t\)</span>也改成抽样，并去除权重<span
+class="math inline">\(\frac{\beta_t^2}{2\sigma_t^2\alpha_t(1-\bar{\alpha}_t)}\)</span>，训练效果会更好，即新的训练目标简化为：
+<span class="math display">\[
+\mathcal{L}_{\text{simple}} = \mathbb{E}_{t, q(\pmb{x}_0),
+\pmb{\epsilon}}[||\pmb{\epsilon} -
+\pmb{\epsilon}_\theta({\bar{\alpha}_t}\pmb{x}_0 +
+\sqrt{1-\bar{\alpha}_t}\pmb{\epsilon}, t)||^2], t\sim \mathcal{U}(1, T),
+\pmb{\epsilon}\sim\mathcal{N}(\pmb{0}, \pmb{I})
+\]</span> 其训练和采样生成的过程也变得非常简洁，如下面的伪代码：</p>
+<p><img src="alg.png" alt="overview" style="zoom:50%;" /></p>
+<center>
+<div
+style="color:orange; border-bottom: 1px solid #d9d9d9;     display: inline-block;     color: #999;     padding: 2px;">
+DDPM训练和采样生成的伪代码（来自<a url="https://arxiv.org/abs/2006.11239">Ho
+et al. 2020</a>）
+</div>
+</center>
+<p>值得一提的是去除权重这一行为使得不同步的<span
+class="math inline">\(\pmb{\epsilon}_\theta(\cdot,
+t)\)</span>是平等的，这也是score
+matching网络的做法。虽然从数学推导上来看会使目标函数的最终效果偏离令<span
+class="math inline">\(q(\pmb{x}_0) =
+p_\theta(\pmb{x}_0)\)</span>，但从优化的角度来看这么做是合理的。因为不同步<span
+class="math inline">\(t\)</span>实际使用的是不同的参数，相互之间没有依赖关系，而它们对应目标函数中的项相互之间只是加权求和的关系，所以令整体最小和使每一项分别最小最后的效果是一样的。</p>
+<h3 id="beta_t的选取">3. <span
+class="math inline">\(\beta_t\)</span>的选取</h3>
+<p>DDPM原文中选取从<span
+class="math inline">\(\beta_1=10^{-4}\)</span>线性增长到<span
+class="math inline">\(\beta_T=0.02\)</span>。<span
+class="math inline">\(\beta_t\)</span>的选取需要是相对于数据的分布是较小的，这样才能保证前向和逆向的过程的分布是类似的形式（图像生成数据归一化到<span
+class="math inline">\([-1, 1]\)</span>）。</p>
+<h2 id="三improved-ddpm">三、Improved DDPM</h2>
+<p><a href="https://arxiv.org/abs/2102.09672" target="_blank" rel="noopener">Nichol &amp; Dhariwal
+(Improved DDPM， 2021)</a> 的文中提出了若干对DDPM模型的优化方法。</p>
+<p>首先是提出基于cosine进行<span
+class="math inline">\(\beta_t\)</span>的变化： <span
+class="math display">\[
+\beta_t = \text{clip}(1 - \frac{\bar{\alpha}_t}{\bar{\alpha}_{t-1}},
+0.999), \bar{\alpha}_t = \frac{f(t)}{f(0)}, f(t) = \cos (\frac{t/T+s}{1
++ s}\cdot \frac{\pi}{2})^2
+\]</span> 其中<span
+class="math inline">\(s\)</span>是较小的偏置，防止在<span
+class="math inline">\(t=0\)</span>时<span
+class="math inline">\(\beta_t\)</span>过于小。其次，<a
+href="https://arxiv.org/abs/2102.09672">Nichol &amp; Dhariwal (Improved
+DDPM， 2021)</a> 也提出用模型预测的向量<span
+class="math inline">\(\pmb{v}\)</span>对<span
+class="math inline">\(\beta_t\)</span>和<span
+class="math inline">\(\tilde{\beta}_t\)</span>进行混合来作为逆向过程的方差：
+<span class="math display">\[
+\pmb{\Sigma}_\theta(\pmb{x}_t, t) = \exp(\pmb{v}\log \beta_t + (1 -
+\pmb{v})\log\tilde{\beta}_t)
+\]</span> 因为<span
+class="math inline">\(\mathcal{L}_{\text{simple}}\)</span>是与<span
+class="math inline">\(\pmb{\Sigma}_\theta\)</span>无关的，他们选择将原始的训练目标和DDPM中简化的训练目标进行加权作为新的训练目标：
+<span class="math display">\[
+\mathcal{L}_\text{hybrid} = \mathcal{L}_\text{simple} + \lambda
+\mathcal{L}
+\]</span> 除此之外他们提出通过strided
+sampling的方式加速生成采样，具体而言，每隔<span
+class="math inline">\(\lceil T/S
+\rceil\)</span>步进行一次更新，这样将总共<span
+class="math inline">\(T\)</span>步的采样变为<span
+class="math inline">\(S\)</span>步，每步的方差可以如下计算： <span
+class="math display">\[
+\beta_{S_t} = 1 - \frac{\bar{\alpha}_{S_t}}{\bar{\alpha}_{S_{t-1}}},
+\tilde{\beta}_{S_t}
+=\frac{1-\bar{\alpha}_{S_{t-1}}}{1-\bar{\alpha}_{S_t}}\beta_{S_t}
+\]</span></p>
+<h2 id="后记">后记</h2>
+<p>本篇到此就结束了，记录了基础的diffusion
+model以及由其简化而来的denoising diffusion probabilistic model
+(DDPM)。而DDPM文中也分析了其框架与Langevin dynamics以及score
+matching方法的相似之处。除此之外，也记录了Improved
+DDPM中提出的若干优化。整个过程涉及很多数学推导，需要慢慢看仔细思考才能理解，写完以后大脑cpu温度过高直接去打游戏了。下一篇将讲解抽象程度更高的denoising
+diffusion implicit model (<a
+href="https://arxiv.org/abs/2010.02502">Song et al., 2020</a>,
+DDIM)和DDIM理论最优的<span class="math inline">\(\sigma\)</span>取值(<a
+href="https://arxiv.org/pdf/2201.06503.pdf">Bao et al., 2022</a>,
+Analytic-DPM)。</p>
+<h2 id="参考文献">参考文献</h2>
+<p>[1] <a
+href="https://lilianweng.github.io/posts/2021-07-11-diffusion-models/">What
+are diffusion models?</a></p>
+<p>[2] <a href="https://arxiv.org/pdf/1503.03585.pdf" target="_blank" rel="noopener">Deep Unsupervised
+Learning using Nonequilibrium Thermodynamics (ICML 2015)</a></p>
+<p>[3] <a href="https://arxiv.org/pdf/2006.11239.pdf" target="_blank" rel="noopener">Denoising
+Diffusion Probabilistic Models (NeurIPS 2020)</a></p>
+<p>[4] <a href="https://arxiv.org/pdf/2102.09672.pdf" target="_blank" rel="noopener">Improved Denoising
+Diffusion Probabilistic Models</a></p>
+]]></content>
+      <categories>
+        <category>学习</category>
+      </categories>
+      <tags>
+        <tag>generation</tag>
+        <tag>diffusion</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>GNN（二）：图神经网络——深层编码器、GCN、GAT</title>
     <url>/2020/06/25/GNN/</url>
     <content><![CDATA[<p>浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。<a id="more"></a></p>
@@ -1511,6 +1323,194 @@ Thomas)</a></p>
       </tags>
   </entry>
   <entry>
+    <title>GNN（一）：图的表征学习</title>
+    <url>/2020/06/24/GNNrepr/</url>
+    <content><![CDATA[<p>机器学习的第一件事是需要将训练所用的未处理的数据（raw
+data）转化为具有一定格式的数据（structured
+data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word
+embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如
+word embedding
+所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。<a id="more"></a></p>
+<h2 id="一embedding-nodesnode2vec">一、Embedding Nodes（node2vec）</h2>
+<p>将节点通过一个编码器（encoder）映射为高维空间的向量来表示节点。映射后的向量需要满足的条件是：两个节点对应的向量能反应这两个节点在原图中的相似性。向量的相似性即两者的夹角，因此可以用点乘来的值来表示。如果需要表示的节点为<span
+class="math inline">\(u,v\)</span>，而经 encoder 得到的向量为<span
+class="math inline">\(\bf{z_v},\bf{z_u}\)</span>，则应满足： <span
+class="math display">\[
+similarity(u, v)\approx \bf{z_v}^T\bf{z_u}
+\]</span> 因此图中节点的表示学习的方法就可以用三个步骤表示：</p>
+<ol type="1">
+<li>定义一个 encoder，用来将节点的 one-hot 编码映射成固定维度的向量</li>
+<li>定义一个描述原图中两个节点相似性的函数 <span
+class="math inline">\(similarity\)</span></li>
+<li>优化 encoder 中的参数使得最后符合 <span
+class="math inline">\(similarity(u, v)\approx
+\bf{z_v}^T\bf{z_u}\)</span></li>
+</ol>
+<h3 id="定义-encoder">1. 定义 encoder</h3>
+<p>此部分比较简单，参考NLP中的 word embedding，只需要对 one-hot
+的编码进行矩阵乘即可。 <span class="math display">\[
+\begin{array}{cc}
+v \in \mathbb{I}^{|V|}\\
+\bf{Z} \in\mathbb{R}^{d\times |V|}
+\end{array}
+\]</span> 则对应节点 <span class="math inline">\(v\)</span>
+的嵌入向量为： <span class="math display">\[
+\mathbf{z_v} =\mathbf{Z} v,\ \mathbf{z_v}\in \mathbb{R}^d
+\]</span> 这样的方法其实相当于 embedding 矩阵 <span
+class="math inline">\(\mathbf{Z}\)</span>
+的每一列就对应一个节点的表示向量。维度 <span
+class="math inline">\(d\)</span> 是超参，在网络构建前确定。</p>
+<h3 id="定义-similarity">2. 定义 similarity</h3>
+<p>这部分是节点表示学习的关键，不同的 similarity
+定义的方法会带来不同的损失函数，节点最后的表示向量的适用任务也不一样。比较容易想到的有两种定义
+similarity 的方法：</p>
+<ol type="1">
+<li>两个点相互连接则定义为相似（Adjaceny-based）</li>
+<li>两个点的共同的邻居数量表示相似程度（Multi-hop similarity
+definations）</li>
+</ol>
+<p>但这两种显然都只是考虑了图的局部性质，有比较大的局限性。因此更常用的方法是
+Random Walk Approaches。</p>
+<h4 id="random-walk-approaches">Random Walk Approaches</h4>
+<h5 id="原理">原理</h5>
+<p>首先定义什么叫 <strong>random
+walk</strong>：在给定的图中选定一个点<span
+class="math inline">\(v\)</span>为起点，随机选择其邻接的点<span
+class="math inline">\(v_1\)</span>作为下一个点，再随机选择<span
+class="math inline">\(v_1\)</span>邻接的点<span
+class="math inline">\(v_2\)</span>作为下一个点，直到路径达到指定的长度。这样随机选出的一个点序列称为一个
+<strong>random walk</strong>。</p>
+<p>那么可以定义两点（<span
+class="math inline">\(u,v\)</span>）之间的相似度为这两点出现在同一条
+<strong>random walk</strong> 中的概率。</p>
+<p>使用这种定义方法的好处是同时考虑到了局部和全局的相似关系，因为根据不同的随机策略以及不同的路径长度可以均衡关注局部和关注全局的两种倾向。同时也不需要考虑所有的点对，只需要考虑在随机过程中每条<strong>random
+walk</strong> 中出现的点对即可。</p>
+<h5 id="生成策略">生成策略</h5>
+<p>最简单的生成策略是固定路径的长度，每次随机一个邻接的点作为下一步。但这样的方式过于简单，无法对其的
+focus 进行人工调整。因此在 node2vec
+的实现当中，使用的是有偏的选择道路的方式（Biased Walks）。</p>
+<p>两种经典的有偏的选择道路的方式即广度优先（BFS）和深度优先（DFS）。可以很明显地看出来，广度优先更聚焦于局部（Local）的节点连接状况（Micro-view
+of
+Neighborhood），深度优先则更关注全局（Global）的节点连接状况（Macro-view
+of
+Neighborhood）。与一个点连接的周围点根据其性质分为三种情况：前一个节点，距离起点一样的节点，距离起点更远的节点。</p>
+<p><img src="three_types_of_point.png" alt="types" style="zoom:50%;" /></p>
+<p>为了平衡这些关系，node2vec 在实现中定义了两个超参：</p>
+<ul>
+<li>p：return parameter，描述返回上一节点的概率</li>
+<li>q：in-out parameter，描述局部和全局的平衡</li>
+</ul>
+<p>以<span
+class="math inline">\(1、\frac{1}{q}、\frac{1}{p}\)</span>来表示前往更近的节点、前往更远的节点、返回前一节点的概率（还没有归一化）。例如对以下的图，<span
+class="math inline">\(s_1\)</span>为父节点，<span
+class="math inline">\(s_2\)</span>为距起点<span
+class="math inline">\(u\)</span>距离为2的点，<span
+class="math inline">\(s_3\)</span>和<span
+class="math inline">\(s_4\)</span>为距起点距离为3的点，当前点为<span
+class="math inline">\(w\)</span>，则前往<span
+class="math inline">\(s_2\)</span>的概率为<span
+class="math inline">\(\frac{1}{1+\frac{1}{p}+2\times
+\frac{1}{q}}\)</span>。</p>
+<p><img src="probability.png" alt="pro" style="zoom:50%;" /></p>
+<p>可以见到，越低的<span
+class="math inline">\(p\)</span>值，越倾向于关注局部，越低的<span
+class="math inline">\(q\)</span>值，越倾向于全局。给定不同的参数值，就可以对节点表示学习的关注点进行调节。</p>
+<h3 id="参数优化optimization">3. 参数优化（Optimization）</h3>
+<p>要使用梯度下降的方法进行训练，首先需要得到一个目标的损失函数。</p>
+<h4 id="损失函数loss">损失函数（Loss）</h4>
+<p>以 <span class="math inline">\(N_R(u)\)</span> 表示以方法 <span
+class="math inline">\(R\)</span> 得到的点 <span
+class="math inline">\(u\)</span> 的邻居点集合，这些邻居点被认为是和点
+<span class="math inline">\(u\)</span>
+有一定程度相似的（邻居点不一定是邻接的点）。例如方法 <span
+class="math inline">\(R\)</span> 为 random walk approaches 时，<span
+class="math inline">\(N_R(u)\)</span> 表示的就是在点 <span
+class="math inline">\(u\)</span> 出现的所有 random walk
+中的其他点的集合。注意这个集合中是允许出现重复点的，例如在 random walk
+approaches 中可能随机到往回走，这样某个点就可能多次被走到。</p>
+<p>则优化目标应该是最大化给定各个点，<span
+class="math inline">\(N_R\)</span>中的点是它们的邻居点的条件概率，同样用取
+log 的方式将乘法变成加法： <span class="math display">\[
+\max_z\sum_{u\in V}\log P(N_R(u)|u)
+\]</span> 用 softmax 方法进行点<span
+class="math inline">\(v\)</span>是点<span
+class="math inline">\(u\)</span>的邻居点的条件概率计算，则对应的损失函数为：
+<span class="math display">\[
+\begin{array}{cc}
+\mathcal L = \sum_{u\in V}\sum_{v \in N_R(u)}-\log P(v|\mathbf{z_u})\\
+其中\ P(v|\mathbf{z_u}) =
+\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}}
+\end{array}
+\]</span></p>
+<h4 id="负采样negative-sampling简化">负采样（Negative
+Sampling）简化</h4>
+<p>但是这么做对loss的计算复杂度是非常高的，在最外面的求和符号是<span
+class="math inline">\(O(|V|)\)</span>的循环次数，在计算 softmax
+的时候又需要循环 <span class="math inline">\(O(|V|)\)</span> 次，总共是
+<span class="math inline">\(O(|V|^2)\)</span>
+的复杂度。因此在实际使用中采取负采样（negative
+sampling）的方法进行近似（注意是效果上的近似，并不能靠数学公式推导得出）：
+<span class="math display">\[
+\begin{array}{cc}
+\log(\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}})\approx \log(\sigma
+(\mathbf{z_u}^T\mathbf{z_v}))) - \sum_{i=1}^k \log
+(\sigma(\mathbf{z_u}^T\mathbf{z_{n_i}}))) \\
+其中\ \sigma\ 是 sigmoid 函数 f(x) =
+\frac{1}{1+e^{-x}}，n_i是在所有点的编号中进行随机选取的编号
+\end{array}
+\]</span>
+严格来说约等号的两侧是不同的函数，但优化后者一定程度上和优化前者得到的效果是一样的。负采样的思想是得到一个点的“真实得分”，再加上一些“噪声”作为最后的得分。这也就是为什么需要加用sigmoid函数，因此sigmoid函数可以把实数映射到<span
+class="math inline">\((0, 1]\)</span>区间，正好作为概率的代表。其中<span
+class="math inline">\(k\)</span>的取值越大，训练的结果泛化能力越强，一般情况下<span
+class="math inline">\(k\)</span>取 5～20。</p>
+<h2 id="二embedding-entire-graph">二、Embedding Entire Graph</h2>
+<p>有了对节点的表示学习之后，还可以进一步对一张图（整图或子图）进行编码。常见的也有三种方法。</p>
+<h3 id="加和平均">1. 加和/平均</h3>
+<p>首先使用 node2vec
+方法编码每个节点，再将需要编码的图中的每个节点的编码加和或取平均作为图的编码。</p>
+<h3 id="超节点super-node表示">2. 超节点（super-node）表示</h3>
+<p>新增一个超节点（super-node），该节点与需要表示的图中的每个节点都连有一条边，再进行一次
+node2vec 操作，用这个节点的编码来表示图的编码。</p>
+<h3 id="anonymous-walk-embedding">3. Anonymous Walk Embedding</h3>
+<p>继续使用 <strong>random walk approaches</strong>
+的想法，对于相同形式的 <strong>random
+walk</strong>，将它们归为同一类。例如某一个路径为<span
+class="math inline">\(A - B - A - C\)</span>，另一条路径为<span
+class="math inline">\(D-A-D-F\)</span>，两条路径的模式均为<span
+class="math inline">\(1-2-1-3\)</span>，则归为同一类，这就是一个
+<strong>Anonymous
+Walk</strong>。给定路径长作为超参，枚举所有路径模式及其出现频率，用最大似然法近似这些模式的分布，得到图的编码。</p>
+<p>这种想法的缺点在于枚举所有的路径非常耗时，当路径长增长时复杂度是指数增长的。因此另一种想法是对路径模式进行采样，随机产生
+<span class="math inline">\(m\)</span> 条 <strong>random walk</strong>
+并计算它们的路径模式，用以近似真实的路径模式分布。其中要使误差超过<span
+class="math inline">\(\varepsilon\)</span>的小于<span
+class="math inline">\(\delta\)</span>时需要的采样数 <span
+class="math inline">\(m\)</span> 满足： <span class="math display">\[
+\begin{array}{cc}
+m=\lceil\frac{2}{\varepsilon^2}(\log (2^\eta - 2)-\log(\delta)) \rceil\\
+其中\log以e为底，\eta 为给定路径长下路径模式的总种类数
+\end{array}
+\]</span></p>
+<p>除此之外，还有一种想法是直接将 Anonymous Walk 编码，使一个由多个
+Anonymous Walk 组成的序列变得可预测。具体内容参见文献：<a
+href="https://arxiv.org/pdf/1805.11921.pdf">Anonymous Walk Embeddings,
+ICML 2018</a>。</p>
+<h2 id="reference">Reference</h2>
+<p>[1] <a
+href="http://web.stanford.edu/class/cs224w/slides/07-noderepr.pdf">Stanford
+CS224W: Machine Learning with Graphs，Lecture 7 - Graph Representation
+Learning</a></p>
+]]></content>
+      <categories>
+        <category>学习</category>
+      </categories>
+      <tags>
+        <tag>GNN</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Linux 非 Root 用户安装与使用 conda</title>
     <url>/2021/01/18/Miniconda/</url>
     <content><![CDATA[<p>​
@@ -1556,93 +1556,267 @@ href="https://zhuanlan.zhihu.com/p/87123943">https://zhuanlan.zhihu.com/p/871239
       </tags>
   </entry>
   <entry>
-    <title>Linux Network Namespace(netns)使用——以PPPoE实验为例</title>
-    <url>/2020/09/14/Netns/</url>
-    <content><![CDATA[<p>​
-netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究
-PPPoE 网络协议的实验，需要有一个 server 和一个
-client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和
-Windows 本身不共用网络层，因此可以一个当 server，一个当
-client，但我只有一台 Linux 电脑，所以就需要用 netns
-建立隔离的网络栈来模拟两台电脑。<a id="more"></a></p>
-<h2 id="一netns-使用">一、netns 使用</h2>
-<p>netns 的使用是需要 sudo 权限的，且是 ip
-系列的指令，因此相关指令的前缀都为 <code>sudo ip netns</code>。</p>
-<p>增加一个网络空间的指令为<code>add</code>，后接网络名称，在这里创建两个网络空间，一个为<code>net0</code>，一个为<code>net1</code>，分别用于
-PPPoE 的 server 和 client
-搭建（之后如果想删除的话只需要用<code>del</code>指令即可）：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns add net0</span><br><span class="line">sudo ip netns add net1</span><br></pre></td></tr></table></figure>
-<p>使用<code>ls</code>或<code>show</code>指令查看网络空间，确认两个网络空间已经建立：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns ls</span><br><span class="line"><span class="comment"># 输出应为：</span></span><br><span class="line"><span class="comment"># net0</span></span><br><span class="line"><span class="comment"># net1</span></span><br></pre></td></tr></table></figure>
-<p>如果想在某个特定的网络空间下运行指令，只需要给前缀<code>sudo ip netns exec name</code>即可，想在<code>net0</code>
-空间中运行 <code>ip addr</code> 指令，只需要：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip addr</span><br></pre></td></tr></table></figure>
-<p>新建立的网络命名空间的 loopback 接口是默认关闭的（在
-<code>ip addr</code>
-中可以看到接口<code>lo</code>的状态是<strong>DOWN</strong>），如果需要打开，使用：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ip link set xxx up 是打开接口 xxx</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> lo up</span><br></pre></td></tr></table></figure>
-<p>此时两个网络空间之间无法互相通信，需要有一根虚拟网线连接两个网络空间。这根虚拟网线就是
-<strong>veth</strong> (virtual ethernet)。veth
-总是成对出现的（相当于网线的两头），因此创建时是两个同时创建。使用<code>ip link</code>系列的<code>add</code>指令进行创建（同样，要删除只需要<code>ip link del dev xxx</code>）：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 默认名字为 veth0 和 veth0</span></span><br><span class="line">sudo ip link add <span class="built_in">type</span> veth</span><br><span class="line"><span class="comment"># 或者也可以用自定义名字的方式：</span></span><br><span class="line"><span class="comment"># sudo ip link add name veth0 type veth peer name veth1</span></span><br></pre></td></tr></table></figure>
-<p>此时用<code>ip addr</code>指令应该可以看到这两个接口。接下来需要将两个接口分别绑定到两个网络空间：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip link <span class="built_in">set</span> veth0 netns net0</span><br><span class="line">sudo ip link <span class="built_in">set</span> veth1 netns net1</span><br></pre></td></tr></table></figure>
-<p>这样虚拟网线的两端就绑定到两个网络空间了。但是此时两个网络之间还是不能通信，因为veth端口还没有打开，且还没有分配IP地址，因此要打开接口并分配地址：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 打开接口</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> veth0 up</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip link <span class="built_in">set</span> veth1 up</span><br><span class="line"><span class="comment"># 分配 IP 地址，这里以 192.168.0.2/24 和 192.168.0.3/24 为例(/24是子网掩码)</span></span><br><span class="line"><span class="comment"># ip a 是 ip addr 的缩写</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip a add 192.168.0.2/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip a add 192.168.0.3/24 dev veth1</span><br></pre></td></tr></table></figure>
-<p>分配好之后还需要手动配置路由，否则无法互相找到，使用<code>ip r</code>指令(是<code>ip route</code>的缩写)</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 表示所有192.168.0.x的地址都通过veth0和veth1寻找</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip r add 192.168.0.0/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip r add 192.168.0.0/24 dev veth1</span><br></pre></td></tr></table></figure>
-<p>这样两个子网就可以互相ping通了，即可以互相通信了：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ping 192.168.0.3 <span class="comment"># 从net0 ping net1</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ping 192.168.0.2 <span class="comment"># 从net1 ping net0</span></span><br></pre></td></tr></table></figure>
-<p>至此两个互相能通信的子网已经建立。</p>
-<h2 id="二pppoe">二、PPPoE</h2>
-<h3 id="server-搭建">1. server 搭建</h3>
-<p>安装 PPPoE server：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoe</span><br></pre></td></tr></table></figure>
-<p>通过<code>vim /etc/ppp/options</code> 编辑 PPPoE 的配置文件并删除
-<code>#+chap</code> 行首的注释符 <code>#</code>。</p>
-<p>通过 <code>vim /etc/ppp/pppoe-server-options</code> 进行 server
-的配置，写入：</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">require-chap</span><br><span class="line">lcp-echo-interval 60</span><br><span class="line">lcp-echo-failure 5</span><br><span class="line">logfile &#x2F;var&#x2F;log&#x2F;pppd.log</span><br></pre></td></tr></table></figure>
-<p>通过 <code>vim /etc/ppp/chap-secrets</code> 编辑 server
-端认证的帐号密码，在最后一行加入：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">test</span> * 123456 *  <span class="comment"># client/server/secret/IP address</span></span><br></pre></td></tr></table></figure>
-<p>这里注意，因为本实验中 server 和 client
-其实是同一台机器模拟的两个网络空间，即配置文件是共用的，因此在配置客户端的时候可能会把服务端的配置覆盖，需要配置完客户端后重新回来把被覆盖的部分加上。</p>
-<p>之后启动server即可（注意在 net0 空间中启动）</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -I 后跟的是使用的interface，选择和 net1 连接的 veth0，-L 指定server在子网中的地址，-R指定接入client的地址分配的起始点，-N指定允许的最多client</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 sudo pppoe-server -I veth0 -L 10.0.0.1 -R 10.0.0.2 -N</span><br><span class="line">20</span><br></pre></td></tr></table></figure>
-<h3 id="client-搭建">2. client 搭建</h3>
-<p>安装pppoeconf：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoeconf</span><br></pre></td></tr></table></figure>
-<p>在子网<code>net1</code>中运行pppoeconf，并且指定使用<code>veth1</code>接口：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 pppoeconf veth1</span><br></pre></td></tr></table></figure>
-<p>按顺序：popular
-options，选否；用户名，删掉默认的username，输入test；密码，输入123456；User
-peer DNS，选是；Limited MSS Problem，选是；Start connection at boot
-time，否；Establish a Connection，否。</p>
-<p>此时pppoeconf应该覆盖了原先server端的<code>chap-secrets</code>，需要把<code>test * 123456 *</code>
-重新加回配置文件。</p>
-<p>更改结束后如果需要开启client连接，只需要在net1网络空间下运行<code>sudo pon dsl-provider</code>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
-<p>查看状态可以使用<code>sudo plog</code>，关闭连接可以用<code>sudo poff</code></p>
-<h2 id="三使用-tcpdump-抓包">三、使用 tcpdump 抓包</h2>
-<p>我们需要在运行<code>pon dsl-provider</code>之前开启抓包，这样就能得到客户端进行连接时和server进行的交互信息。在客户端抓包还是在服务端抓包是一样的，只是发送的和接收的相反而已。在客户端抓包：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -i 为选择监听的 interface，-v 为 verbose（显示详细信息），-n 为不翻译地址（即不用dns翻译，可以加快速度），-w 为设置数据存储路径（存为pcap文件，可以用wireshark进行分析）</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 tcpdump -i veth1 -vn -w packet.cap</span><br></pre></td></tr></table></figure>
-<p>此时已经tcpdump已经开始监听 net1 的 veth1
-了，之后所有通过这个接口发送的包都会被存下来，此时再开始连接过程：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
-<p>连接完成后再关闭监听，此时所有连接过程的包都已经被保存到<strong>packet.cap</strong>文件中了，使用<strong>wireshark</strong>打开即可得到PPPoE各阶段的报文：</p>
-<figure>
-<img src="all.png" alt="all" />
-<figcaption aria-hidden="true">all</figcaption>
-</figure>
+    <title>Minecraft Java版服务器搭建（Linux）与客户端连接</title>
+    <url>/2020/09/09/Minecraft/</url>
+    <content><![CDATA[<p>因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用
+java
+版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给
+mojang
+氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用
+Linux 建的服务器，那完全可以用 ssh
+端口转发的方式把远端服务器加进局域网（实际是加到127.0.0.1），尝试了一下果然成功了！但成功以后发现原来其实offline模式也是可以连私人服务器的。。。anyway记录一下整个过程！<a id="more"></a></p>
+<h2 id="一服务端搭建linux">一、服务端搭建（Linux）</h2>
+<p>在配置之前需要准备一台装有Linux系统的服务器，可以是自己的破旧电脑改装的，也可以是VPS。</p>
+<h3 id="建立-java-运行环境">1. 建立 java 运行环境</h3>
+<p>如果是 ubuntu 系统，只需要安装默认的 java runtime environment （java
+re）即可：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install default-jre</span><br></pre></td></tr></table></figure>
+<p>其他 Linux 发行版用各自对应的包管理器安装即可。或者按照 java 的<a
+href="https://www.java.com/zh_CN/">官方网站</a>提供的教程进行安装</p>
+<h3 id="下载服务器-jar-文件">2. 下载服务器 jar 文件</h3>
+<p>可以在这个网站：<a
+href="https://mcversions.net/">https://mcversions.net/</a>
+找到各个版本的服务端 jar 文件。注意下载的时候要选择“server
+jar“。如果在远程服务器上下载，可以复制下载链接以后用
+<code>wget</code>、<code>aria2c</code> 等命令行下载器进行下载。</p>
+<p><img src="serverjar.png" alt="serverjar" style="zoom:36%;" /></p>
+<p>下载后的文件名为”server.jar“</p>
+<h3 id="启动服务器">3. 启动服务器</h3>
+<p>先进入服务器jar文件所在的目录。</p>
+<p>第一步是进行初始化：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar server.jar --initSettings</span><br></pre></td></tr></table></figure>
+<p>这步会自动创建初始的 <strong>server.properties</strong>
+配置文件以及协议文件
+<strong>eula.txt</strong>。前者存储的是服务端世界的基本配置，大致如下：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">#Minecraft server properties</span><br><span class="line">spawn-protection&#x3D;16</span><br><span class="line">max-tick-time&#x3D;60000</span><br><span class="line">query.port&#x3D;25565</span><br><span class="line">generator-settings&#x3D;</span><br><span class="line">sync-chunk-writes&#x3D;true</span><br><span class="line">force-gamemode&#x3D;false</span><br><span class="line">allow-nether&#x3D;true</span><br><span class="line">enforce-whitelist&#x3D;false</span><br><span class="line">gamemode&#x3D;survival</span><br><span class="line">broadcast-console-to-ops&#x3D;true</span><br><span class="line">enable-query&#x3D;false</span><br><span class="line">player-idle-timeout&#x3D;0</span><br><span class="line">difficulty&#x3D;easy</span><br><span class="line">spawn-monsters&#x3D;true</span><br><span class="line">broadcast-rcon-to-ops&#x3D;true</span><br><span class="line">op-permission-level&#x3D;4</span><br><span class="line">pvp&#x3D;true</span><br><span class="line">entity-broadcast-range-percentage&#x3D;100</span><br><span class="line">snooper-enabled&#x3D;true</span><br><span class="line">level-type&#x3D;default</span><br><span class="line">hardcore&#x3D;false</span><br><span class="line">enable-status&#x3D;true</span><br><span class="line">enable-command-block&#x3D;false</span><br><span class="line">max-players&#x3D;20</span><br><span class="line">network-compression-threshold&#x3D;256</span><br><span class="line">resource-pack-sha1&#x3D;</span><br><span class="line">max-world-size&#x3D;29999984</span><br><span class="line">function-permission-level&#x3D;2</span><br><span class="line">rcon.port&#x3D;25575</span><br><span class="line">server-port&#x3D;25565</span><br><span class="line">server-ip&#x3D;</span><br><span class="line">spawn-npcs&#x3D;true</span><br><span class="line">allow-flight&#x3D;false</span><br><span class="line">level-name&#x3D;world</span><br><span class="line">view-distance&#x3D;10</span><br><span class="line">resource-pack&#x3D;</span><br><span class="line">spawn-animals&#x3D;true</span><br><span class="line">white-list&#x3D;false</span><br><span class="line">rcon.password&#x3D;</span><br><span class="line">generate-structures&#x3D;true</span><br><span class="line">online-mode&#x3D;true</span><br><span class="line">max-build-height&#x3D;256</span><br><span class="line">level-seed&#x3D;</span><br><span class="line">prevent-proxy-connections&#x3D;false</span><br><span class="line">use-native-transport&#x3D;true</span><br><span class="line">enable-jmx-monitoring&#x3D;false</span><br><span class="line">motd&#x3D;A Minecraft Server</span><br><span class="line">rate-limit&#x3D;0</span><br><span class="line">enable-rcon&#x3D;false</span><br></pre></td></tr></table></figure>
+<p>如果想要详细的解释可以参考 mc 的 wiki： <a
+href="https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh">https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh</a>。</p>
+<p>后者是使用者需要遵守的一系列规则，看完（直接跳到最后）以后要输入<strong>"eula=true"</strong>表示同意遵守这些规则。</p>
+<p>第二步就是启动服务器了，最后的参数<code>-nogui</code>是不需要跳出图形界面的意思：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms512M -Xmx1024M -jar server.jar -nogui</span><br></pre></td></tr></table></figure>
+<p>此时如果想关掉终端还能让服务器开着，可以使用 <strong>screen</strong>
+软件。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install screen</span><br></pre></td></tr></table></figure>
+<p>安装完成后开启一个给 mc 的 session：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">screen -S mc_server <span class="comment"># mc_server是这个session的名字，可以自定义</span></span><br></pre></td></tr></table></figure>
+<p>在新跳出的窗口中重新运行第二步启动服务器的命令即可。要跳出这个窗口默认的按键是<code>Ctrl+A+D</code>，想再回到这个session对服务器的状态进行查看则需要<code>screen -r mc_server</code>即可。如果想对screen的使用进行个性化配置的话可以自行搜索一下。screen的使用方法这里只介绍三个最常用的：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">screen -S session_name	<span class="comment"># 开起名为session_name的session</span></span><br><span class="line">screen -r session_name	<span class="comment"># 从detached状态恢复名为session_name的session</span></span><br><span class="line">screen -list			<span class="comment"># 列出当前所有session</span></span><br></pre></td></tr></table></figure>
+<p>如果想对服务器进行命令交互可以先输入 <strong>help</strong>
+获取帮助，再从中选取自己需要的指令进行交互。例如停止服务器的指令是<code>\stop</code></p>
+<h3 id="进行内网穿透">4. 进行内网穿透</h3>
+<h4 id="原理">原理</h4>
+<p>如果服务器没有公网IP，例如是用家中废旧电脑搭建的服务器，因为是在运营商给的入网点，肯定是内网IP，此时直接靠IP就不能让别人访问到服务器，因此需要进行内网穿透。公网IP是很少的，除了网上租用VPS会给公网IP外，其他渠道连入互联网几乎都是内网IP（平时常见的192.168.x.x的就是路由器给的局域网中的IP）。总之内网IP是不能被外界直接访问的，只有公网IP才可以。</p>
+<p>内网穿透的原理就是处于内网中的服务器的一个端口映射到一个公网IP，这样访问那个公网IP的数据都会被转发到服务器的127.0.0.1，相当于直接从127.0.0.1访问服务器了。这个过程需要有一个具有公网IP的主机进行数据的转发才能进行，很幸运已经有提供这样的服务的人了。</p>
+<h4 id="使用sakura-frp进行内网穿透">使用sakura frp进行内网穿透</h4>
+<p><a href="https://www.natfrp.com/" target="_blank" rel="noopener">sakura frp</a>
+提供一定额度的内网穿透流量，而且可以通过每日签到增加流量，如果服务器加入的人不是太多的话，一般都是够用的。首先进入网站主页：<a
+href="https://www.natfrp.com/">https://www.natfrp.com/</a>，注册+登录。</p>
+<p><img src="sakura.png" alt="sakura" style="zoom:75%;" /></p>
+<p>登录进去后发现其实因为有很多人用这个软件都是为了建 Minecraft
+的服务器，所以网站已经有现成的为建 MC
+服务器而进行内网穿透的教程了，可以选择直接看它的教程。</p>
+<p><img src="tutorial.png" alt="tutorial" style="zoom:50%;" /></p>
+<p>基本思路就是先在左侧列表中 <strong>内网穿透</strong> -&gt;
+<strong>创建隧道</strong>
+处进行隧道创建。服务器选择只要不是海外的基本都可以（海外的延迟太高了），隧道名称自定义，本地端口填你的
+mc
+服务器监听的端口，隧道类型要选TCP（和基岩版不一样，基岩版用的是udp方法），本地地址就用默认的127.0.0.1即可，远程端口可以填自己喜欢的，也可以空着自动生成（因为你喜欢的可能基本都被别人先抢了）。</p>
+<p><img src="tunnel.png" alt="tunnel" style="zoom:50%;" /></p>
+<p>创建完之后会跳出开启隧道的指令，先复制下来即可。然后去
+<strong>内网穿透</strong> -&gt; <strong>软件下载</strong>
+处选择适合自己系统（mc
+服务器所在的系统）的内网穿透客户端，按照网站主页提供的客户端使用教程开启隧道即可。</p>
+<p><img src="launcher.png" alt="launcher" style="zoom:50%;" /></p>
+<p>开启隧道后会告诉你公网的ip或者域名，此时用那个ip或域名加上之前填的远程端口的端口号就能对
+mc 服务器进行访问。</p>
+<h3 id="服务器性能优化可选">5. 服务器性能优化（可选）</h3>
+<p>有些时候可能开服的主机性能不是很好，但是又想和更多的小伙伴一起玩，这个时候为了尽量避免卡顿，就需要对服务器进行优化。</p>
+<h4
+id="服务器配置优化server.properties">服务器配置优化（server.properties）</h4>
+<ul>
+<li>view-distance 一栏表示的是所看的方向加载的 chunk 数量，默认是
+10，可以调到 6。如果人比较多甚至可以调到
+4。不过调太低会造成远方的地形看不清，可能会影响游戏体验。</li>
+<li>generate-structures
+一栏是指是否会加载已经被发现的地牢、神殿等特殊建筑，默认是
+true，随着这类建筑发现变多，可能会给服务器带来比较大的负担，因为明明没人在附近却还是要加载。所以可以设置成
+false。</li>
+<li>useSMPAPI 一项是是否使用多核，设置为 true
+开启多核模式。本项默认是不存在的，因此要自己添加
+<code>useSMPAPI=true</code></li>
+</ul>
+<h4 id="jvm-启动参数优化">JVM 启动参数优化</h4>
+<p>一组通用参数优化方法：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=<span class="literal">true</span> -jar paper-x.x.x.jar nogui</span><br></pre></td></tr></table></figure>
+<p>其中<code>-Xms</code> 指最小分配内存，<code>-Xmx</code>
+指最大分配内存，这两者根据主机性能不同需要自己设置，其他参数据作者说是在各种主机上都普适的。提出这些参数的原文地址是：<a
+href="https://aikar.co/category/minecraft/">https://aikar.co/category/minecraft/</a>。需要更具体的解释可以参考原文。尝试了一下优化效果确实还是很明显的。</p>
+<h4 id="使用第三方开发的服务端">使用第三方开发的服务端</h4>
+<h5 id="选择一使用-papermc-建立服务端">选择一：使用 PaperMC
+建立服务端</h5>
+<p>PaperMC也叫PaperSpigot，有对 mc
+的服务器进行专门的优化，可以使服务器性能大幅提升。Paper
+的说明文档在这里：<a
+href="https://paper.readthedocs.io/en/latest/server/index.html">https://paper.readthedocs.io/en/latest/server/index.html</a>，里面还是有比较详细的说明的。使用
+paper 的方式就是先下载 paper 的服务端：<a
+href="https://papermc.io/downloads">https://papermc.io/downloads</a>（paper的版本应该就对应服务端的版本，选择适合自己的版本）。然后直接启动即可：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -jar paper-x.x.x.jar	<span class="comment"># Xms和Xmx根据自己主机的内存选择</span></span><br></pre></td></tr></table></figure>
+<p>如果想继承原来的存档，直接把之前 <strong>server.jar</strong>
+所在文件夹里的全部内容复制到 paper 服务器的目录下即可。不过 paper
+对于存档的存储方式和普通的服务器（称之为 Vanilla）有点微差。paper
+将地狱（nether）和末地（the
+end）的内容用额外创建世界的方式进行存储，而原版服务器则是存到
+<strong>world</strong> 文件夹下的 <strong>DIM-1</strong> 和
+<strong>DIM1</strong> 中。不过从Vanilla 转 paper
+的存储方式你无需做任何更改，复制进去以后首次运行 paper
+服务器它会<strong>自动进行转换</strong>。但是如果想<strong>从 paper
+再转回 Vanilla</strong>，则需要找到 <strong>world_nether</strong> 和
+<strong>world_the_end</strong> 文件夹，分别将里面的
+<strong>DIM-1</strong>， <strong>DIM1</strong> 文件夹复制到
+<strong>world</strong> 文件夹内。即文件树从上面这个变成下面这个：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">+-- world</span><br><span class="line">| 	+-- ...（其他文件）</span><br><span class="line">+-- wolrd_nether</span><br><span class="line">|   +-- DIM-1</span><br><span class="line">|   +-- ...（其他文件）</span><br><span class="line">+-- world_the_end</span><br><span class="line">|   +-- DIM1</span><br><span class="line">|   +-- ...（其他文件）</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">+-- world</span><br><span class="line">|	+-- DIM-1</span><br><span class="line">| 	+--	DIM1</span><br><span class="line">|	+-- ...（其他文件）</span><br></pre></td></tr></table></figure>
+<p>除此之外还需要注意的是 paper
+服务器默认关闭铁轨复制的特性，如果要打开需要编辑
+<strong>paper.yml</strong>，将里面的
+<strong>allow-piston-duplication</strong> 设置为
+<strong>true</strong>。在复制铁轨的时候你可能会觉得铁轨掉到地上就消失了，其实并没有，只是因为
+paper
+服务器默认开启了同类物品近距离合并，所以单个的铁轨都被合并到一个物品堆里了，看起来就像消失了一样。</p>
+<p>关于paper的其他参数的优化可以看<a
+href="https://ent.163.com/game/16/0129/14/BEGKSO4500314UFD.html">这篇文章</a>，里面有比较详细的介绍。</p>
+<h5 id="选择二使用-fabric-搭建服务端加入优化-mod">选择二：使用 fabric
+搭建服务端加入优化 MOD</h5>
+<p>准确来说fabric并不算第三方服务端，只是一个能为server加入 mod
+的集成工具链。fabric 搭建服务端可以加入 mod，而有很多 mod
+是专门为了优化游戏性能而存在的。</p>
+<p>首先需要去 fabric 官网下载 fabric 安装器。官网有给 mc server
+建立方法，详情在 <a
+href="https://fabricmc.net/use/?page=server">https://fabricmc.net/use/?page=server</a>。在写这篇文章的时候，fabric
+最新版本是 0.6.1.51，所以下载的方法为：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">wget -O fabric-installer-0.6.1.51.jar https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar <span class="comment"># wget 下载</span></span><br></pre></td></tr></table></figure>
+<p>或者使用curl下载：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar -o fabric-installer-0.6.1.51.jar <span class="comment"># curl 下载</span></span><br></pre></td></tr></table></figure>
+<p>之后用安装器获取用于启动 mc server 的 fabric 启动器：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar fabric-installer-0.6.1.51.jar server -downloadMinecraft</span><br></pre></td></tr></table></figure>
+<p>其中的 <code>-downloadMinecraft</code> 是会自动下载最新的 mc server
+的 jar，也即前面步骤中的
+<strong>server.jar</strong>。由于下载速度可能非常慢，因此如果之前已经下好了
+server.jar，可以直接去掉这个参数，并把 server.jar
+复制到<strong>当前目录（fabric installer
+所在的目录）</strong>。指令完成后应该当前目录应该会多一个
+<strong>fabric-server-launcher.jar</strong>
+文件，以后启动服务器的指令就变为：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar fabric-server-launcher.jar</span><br></pre></td></tr></table></figure>
+<p>如果之前已经用前面的方式玩过服务器了，想要继承存档的话只要把之前
+<strong>server.jar</strong> 所在的文件夹的内容都复制到当前目录即可。</p>
+<p>接下来就是加装 mod 了。装 mod 的方法很简单，就是把 mod
+下载下来放到当前目录的 <strong>mods</strong> 文件夹里即可。mod 可以在 <a
+href="https://www.curseforge.com/minecraft/mc-mods">https://www.curseforge.com/minecraft/mc-mods</a>
+中进行搜索下载。在每个 mod 页面点击右上的 <strong>Download</strong>
+即可下载 mod 的 jar 包。</p>
+<p>第一个是 lithium，通过优化 mc 的内部模块运行效率达到降低 mspt
+的目的，从而使游戏更流畅。链接为：<a
+href="https://www.curseforge.com/minecraft/mc-mods/lithium">https://www.curseforge.com/minecraft/mc-mods/lithium</a>。</p>
+<p>第二个是 phosphor，作用是通过优化光照来降低卡顿，链接为：<a
+href="https://www.curseforge.com/minecraft/mc-mods/phosphor">https://www.curseforge.com/minecraft/mc-mods/phosphor</a></p>
+<p>装载 mod 的时候需要注意的一点是有些 mod
+可能还没跟上版本更新，所以下载前先看一眼 mod
+的描述中支持的版本，否则可能会造成服务端无法运行的错误。</p>
+<p>将 mod 的 jar 包放入当前目录的 mods 文件夹中即可重启服务器了。</p>
+<h5 id="推荐">推荐</h5>
+<p>从我本身的体验上来看，似乎 fabric 这种方法不一定能提供加速，因为加装
+mod 会要求额外的内存空间，对于内存比较吃紧的主机来说，加速 mod
+反而可能是个负担。我的主机是 32 位 2 核 CPU，2G内存，用了 fabric
+之后感觉反而有点减速，而 PaperMC
+的确是有比较好的加速效果，所以还是比较推荐用 PaperMC
+来做服务端的优化，</p>
+<h2 id="二客户端连接">二、客户端连接</h2>
+<h3 id="安装-java-re-环境">0. 安装 Java RE 环境</h3>
+<p>对于 Linux 的用户，可以按照服务端搭建介绍中的方法安装 Java RE
+环境。</p>
+<p>对于 Windows 用户，进入 <a href="https://www.java.com/en/" target="_blank" rel="noopener">java 8
+的官方网站</a>，点击<strong>java download</strong></p>
+<p><img src="java.png" alt="java" style="zoom:50%;" /></p>
+<p>之后直接拉到网页底部，注意不要点直接下载，而是点击 See all java
+downloads。因为直接下载的话可能根据浏览器的版本给你下载 32-bit 的
+java。而 mc 用 64-bit 的会更好一点。</p>
+<p><img src="javaall.png" alt="javaall" style="zoom:50%;" /></p>
+<p>之后找到 windows 的部分，点击 64-bit
+的版本进行下载，按照安装器的指引进行安装即可。</p>
+<p><img src="java64.png" alt="java64" style="zoom:50%;" /></p>
+<h3 id="安装启动器hmcl">1. 安装启动器：HMCL</h3>
+<p>HMCL（Hello Minecraft Launcher）是第三方的 MC Java
+版启动器，因为版本管理+登录一应具全，而且界面比较美观，没有内置广告，所以使用体验较好。用别的启动器只要能进入游戏也是可以的。</p>
+<p>HMCL再官方的github上进行下载：<a
+href="https://github.com/huanghongxun/HMCL/releases">https://github.com/huanghongxun/HMCL/releases</a>
+。</p>
+<p><img src="hmclgithub.png" alt="github" style="zoom:50%;" /></p>
+<p>windows 用户点击 <strong>exe</strong>
+文件下载即可，下载后双击即可运行。Linux 用户可以选择
+<strong>jar</strong> 文件后用 <code>java -jar HMCL-x.x.xxx.jar</code>
+打开，也可以用自己的包管理器直接安装。例如我使用 Manjaro 发行版，再
+archlinux 库中有官方的 HMCL 启动器，我使用的包管理器是
+<strong>yay</strong>，直接 <code>yay hmcl</code> 即可。</p>
+<h3 id="安装游戏本体">2. 安装游戏本体</h3>
+<p>打开启动器后首先跳出创建用户的页面，选择离线模式，输入你喜欢的用户名即可。这个用户名之后在加入服务器进行游戏的时候会显示出来。当然，如果已经给
+mojang 氪过金了，有持有 MC java 版的 mojang
+账号，直接登录也是可以的。</p>
+<p><img src="adduser.png" alt="addusr" style="zoom:50%;" /></p>
+<p>之后点击最上方工具栏中的<strong>安装新游戏版本</strong>进行游戏本体的安装，选择<strong>和服务器一样的版本</strong>。</p>
+<p><img src="enterinstall.png" alt="enterinstall" style="zoom:50%;" /></p>
+<p><img src="versionselect.png" alt="versionselect" style="zoom:50%;" /></p>
+<p>下面这个界面应该是装一些插件的，没有需求的话都不安装即可。点击<strong>安装</strong>以后会自动进行相关文件的下载和安装，慢慢等待安装完成。</p>
+<p><img src="install.png" alt="install" style="zoom:50%;" /></p>
+<p>安装完成后到<strong>游戏列表</strong>界面，点击测试游戏，待成功加载之后，下次启动就可以直接用右下角的开始游戏了：</p>
+<p><img src="testgame.png" alt="testgame" style="zoom:50%;" /></p>
+<p>如果过程中出现无法下载的错误，一是在<strong>启动器设置</strong>里检查自己的java版本是否是64-bit的，二是把下载源换成官方的下载源：</p>
+<p><img src="64check.png" alt="64chek" style="zoom:50%;" /></p>
+<p><img src="source.png" alt="source" style="zoom:50%;" /></p>
+<p>注意如果想把 hmcl.exe 移到别的地方，需要把同级目录下的
+<strong>hmcl.json</strong> 和 <strong>.minecraft</strong>
+文件夹同时移出，前者是 hmcl 的配置文件，后者装的是游戏本体文件。</p>
+<h3 id="连接服务器">3. 连接服务器</h3>
+<h4 id="直接连接私人服务器">直接连接私人服务器</h4>
+<p>先进入 <strong>Multiplayer</strong> 界面：</p>
+<p><img src="mul.png" alt="mul" style="zoom:50%;" /></p>
+<p>然后点击 <strong>add server</strong>：</p>
+<p><img src="addserver.png" alt="addserver" style="zoom:50%;" /></p>
+<p>Server Name 中填写的是你给这个服务器取的名字，可以自定义，Server
+Address 的格式是 <strong>IP:端口</strong> 。如果端口是默认的 25565
+的话可以省略。IP 可以是网址，也可以是直接的Ipv4地址。</p>
+<p><img src="serversetting.png" alt="serversetting" style="zoom:50%;" /></p>
+<p>点击Done之后稍稍等待一下刷新就可以进服务器了！</p>
+<p>这里需要注意的是如果朋友中有人是offline模式进入服务器的话，服务端需要在
+server.properties 里将 <strong>online-mode</strong> 设置成
+<strong>false</strong>。这个选项是是否检查连入的人持有mojang账号，offline模式是没有登录的，所以自然没有mojang账号。</p>
+<h4 id="offline-模式的另一种连接方式">offline 模式的另一种连接方式</h4>
+<p>原理是先用一个 <strong>ssh</strong>
+软件进行端口转发，把本地的某个端口（例如25565）和服务端的端口连接起来（服务器默认端口号是
+25565，在<strong>server.properties</strong>里可以查看），这样向本地的
+25565 端口收发消息，就相当于是从服务端的 127.0.0.1
+收发消息，相当于把服务端加入了局域网。</p>
+<p>需要先在服务端为想连入的人创建一个统一的linux新用户：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo useradd -m mc	<span class="comment"># mc 为用户名，可以自定义</span></span><br><span class="line">sudo passwd mc		<span class="comment"># 为新用户设置密码</span></span><br></pre></td></tr></table></figure>
+<h5 id="下载-ssh-软件putty">下载 ssh 软件（putty）</h5>
+<p>最新的版本在
+https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+可以下载，找到 <strong>putty.exe</strong>，根据自己的电脑选择 64-bit 或
+32-bit 版本（一般电脑都是 64-bit 的）下载。</p>
+<p>开启软件后输入linux服务端的ip和端口。</p>
+<p><img src="user.png" alt="user" style="zoom:50%;" /></p>
+<p>然后再 SSH-&gt;Tunnels
+中MC的server运行的端口，然后点Open开启这个session，输入服务端给的用户名和密码即可。这样就完成的端口转发。如果再Linux上的话用
+<code>ssh</code> 指令即可完成，不需要多下载别的程序。</p>
+<p>之后的过程和前面的连接服务器的方式大致相同，不同点在于此时可以直接在
+local network 中搜索到服务端，如果要通过ip连接的话，需要用 127.0.0.1
+而不是服务端的 ip。</p>
 ]]></content>
       <categories>
-        <category>Linux</category>
+        <category>游戏</category>
       </categories>
       <tags>
-        <tag>netns</tag>
-        <tag>PPPoE</tag>
-        <tag>tcpdump</tag>
+        <tag>Minecraft</tag>
       </tags>
   </entry>
   <entry>
@@ -1870,68 +2044,93 @@ Adjoint Method of Neural ODE</a></p>
       </tags>
   </entry>
   <entry>
-    <title>使用 Zerotier 进行 p2p 连接</title>
-    <url>/2021/10/23/Zerotier/</url>
+    <title>Linux Network Namespace(netns)使用——以PPPoE实验为例</title>
+    <url>/2020/09/14/Netns/</url>
     <content><![CDATA[<p>​
-在一些场景下需要在两台不同内网中的主机间建立连接。例如在家里放了一台常开的电脑，电脑处于家中内网中，平时我们在外面无法直接访问。此时有两种解决方案。第一种是利用<a
-href="https://www.natfrp.com/">Sakura
-Frp</a>等内网端口映射的工具，但是如果通信流量较大（比如在家里电脑上开网站、代理等），就会被内网映射服务的限速、限额影响。第二种方案就是进行p2p连接，公网服务器只用于协助建立两台主机的连接，建立完连接后两台主机之间直接通信，而不用再通过公网服务器。Zerotier就提供这样的服务，并且提供一台免费的公网服务器。<a id="more"></a>p2p连接是基于NAT穿透实现的，而NAT穿透的原理搜索即可，有很多优质博客。本文只记录使用方法。</p>
-<h2 id="一安装">一、安装</h2>
-<p>首先按照<a
-href="https://www.zerotier.com/">Zerotier官网</a>的指导安装工具，Windows和MacOs都是带GUI的APP，Linux为命令行工具<code>zerotier-cli</code>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -s https://install.zerotier.com | sudo bash</span><br></pre></td></tr></table></figure>
-<p>安装完成后zerotier会自动生成一个随机token，在
-/var/lib/zerotier-one/authtoken.secret
-中，通常需要sudo权限才能查看。同时zerotier会自动启动 zerotier-one
-服务，在 localhost:9993 启动 API
-后端，与后端的交互需要token进行权限验证。服务状态可以用<code>systemctl status zerotier-one</code>
-查看，如果没有启动可以用 <code>systemctl start zerotier-one</code>
-手动启动服务。</p>
-<h2 id="二建立网络">二、建立网络</h2>
-<p>我们使用self-hosting的方式构建网络，即某一个客户端同时也是网络的controller（可以用来管理网络准入、ip分配等，但并不是p2p连接中所需要的中间公网服务器，中间公网服务器仍由zerotier提供）。官方的指导在<a
-href="https://docs.zerotier.com/self-hosting/network-controllers">这里</a>。我们用<strong>主机A</strong>来建立controller。</p>
-<p>由于每次使用API都需要token验证，因此为了方便，首先将token放入环境变量：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">TOKEN=$(sudo cat /var/lib/zerotier-one/authtoken.secret)</span><br></pre></td></tr></table></figure>
-<p>一台主机在网络（Network）中是一个节点（Node），并会被zerotier分配一个10位的节点id。主机加入虚拟网络时会通过节点id来寻找该网络的controller。可以通过两种方式查询当前主机的节点id：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 通过zerotier-cli，返回 200 info 节点id 版本号 online</span></span><br><span class="line">sudo zerotier-cli info</span><br><span class="line"><span class="comment"># 通过API，节点id在"address"字段</span></span><br><span class="line">curl <span class="string">"http://localhost:9993/status"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>为了方便，将节点id加入环境变量</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">NODEID=your-node-id</span><br></pre></td></tr></table></figure>
-<p>接下来我们用当前的节点作为controller创建一个虚拟网络。</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NODEID&#125;</span>______"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d &#123;&#125;</span><br></pre></td></tr></table></figure>
-<p>通过post请求建立网络，会生成一个随机的16位网络id。为了方便，将网络id加入环境变量：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">NWID=your-network-id</span><br></pre></td></tr></table></figure>
-<p>可以通过以下指令查看当前节点管理的所有网络的id：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>通过以下指令可以查看指定网络的信息配置信息：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>通过以下指令可以查看加入当前网络的所有节点，在没有节点加入该网络时，返回的是空：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>接下来设置网络的ip分配，并设置为private网络，这样别的节点加入网络就需要controller的授权：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ipRangeStart和ipRangeEnd指定了子网ip分配的范围</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> \</span><br><span class="line">-d <span class="string">'&#123;"ipAssignmentPools": [&#123;"ipRangeStart": "192.168.192.1", "ipRangeEnd": "192.168.192.254"&#125;], "routes": [&#123;"target": "192.168.192.0/24", "via": null&#125;], "v4AssignMode": "zt", "private": true &#125;'</span></span><br></pre></td></tr></table></figure>
-<h2 id="三加入网络">三、加入网络</h2>
-<p>在另一台主机B上安装zerotier，并通过以下指令加入刚创建的网络：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># network-id是16位的网络id</span></span><br><span class="line">sudo zerotier-cli join network-id</span><br></pre></td></tr></table></figure>
-<p>此时再在<strong>主机A</strong>上查看网络所含节点，应当包含<strong>主机B</strong>的节点id，并且是字典的key，value为1：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>需要在controller（<strong>主机A</strong>）上进行授权：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># MEMID是主机B的节点id</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": true&#125;'</span></span><br></pre></td></tr></table></figure>
-<p>此时再查看节点成员列表，<strong>主机B</strong>的value会变成3。注意<strong>主机A</strong>是controller只代表它是类似于路由器的存在，因此需要用同样的方法将<strong>主机A</strong>自己也加入网络才能使AB互相访问。</p>
-<p>完成之后在主机AB上分别使用<code>ip addr</code>查看自己的网络接口，会看到里面多了<strong>zt开头的</strong>网络接口以及主机在虚拟网络中的ip地址，使用虚拟网络中的ip地址即可互相访问。例如<strong>主机A</strong>的地址是192.168.192.5，<strong>主机B</strong>的地址是192.168.192.6，在<strong>主机A</strong>上可以通过<code>ssh user@192.168.192.6</code>使用ssh连接<strong>主机B</strong>。如果<strong>主机A</strong>在0.0.0.0:8080开了一个网站，在<strong>主机B</strong>上也可以使用192.168.192.5:8080进行访问。主机的ip地址是根据public
-key算出来的，算法在identity.cpp里，因此同一主机的ip是固定的。</p>
-<h2 id="四其他">四、其他</h2>
-<p>如果要取消对某个节点的授权，可以在controller上使用以下指令：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": false&#125;'</span></span><br></pre></td></tr></table></figure>
-<p>如果要从网络中删除某个成员，可以使用：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X DELETE <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
-<p>如果想要清理掉这些网络，可以使用：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 先停止zerotier服务</span></span><br><span class="line">systemctl stop zerotier-one</span><br><span class="line"><span class="comment"># 删除现在的服务配置</span></span><br><span class="line"><span class="built_in">cd</span> /var/lib/zerotier-one/</span><br><span class="line">rm -rf ./controller.d/</span><br><span class="line"><span class="comment"># 重新启动zerotier服务</span></span><br><span class="line">systemctl start zerotier-one</span><br></pre></td></tr></table></figure>
+netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究
+PPPoE 网络协议的实验，需要有一个 server 和一个
+client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和
+Windows 本身不共用网络层，因此可以一个当 server，一个当
+client，但我只有一台 Linux 电脑，所以就需要用 netns
+建立隔离的网络栈来模拟两台电脑。<a id="more"></a></p>
+<h2 id="一netns-使用">一、netns 使用</h2>
+<p>netns 的使用是需要 sudo 权限的，且是 ip
+系列的指令，因此相关指令的前缀都为 <code>sudo ip netns</code>。</p>
+<p>增加一个网络空间的指令为<code>add</code>，后接网络名称，在这里创建两个网络空间，一个为<code>net0</code>，一个为<code>net1</code>，分别用于
+PPPoE 的 server 和 client
+搭建（之后如果想删除的话只需要用<code>del</code>指令即可）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns add net0</span><br><span class="line">sudo ip netns add net1</span><br></pre></td></tr></table></figure>
+<p>使用<code>ls</code>或<code>show</code>指令查看网络空间，确认两个网络空间已经建立：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns ls</span><br><span class="line"><span class="comment"># 输出应为：</span></span><br><span class="line"><span class="comment"># net0</span></span><br><span class="line"><span class="comment"># net1</span></span><br></pre></td></tr></table></figure>
+<p>如果想在某个特定的网络空间下运行指令，只需要给前缀<code>sudo ip netns exec name</code>即可，想在<code>net0</code>
+空间中运行 <code>ip addr</code> 指令，只需要：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip addr</span><br></pre></td></tr></table></figure>
+<p>新建立的网络命名空间的 loopback 接口是默认关闭的（在
+<code>ip addr</code>
+中可以看到接口<code>lo</code>的状态是<strong>DOWN</strong>），如果需要打开，使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ip link set xxx up 是打开接口 xxx</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> lo up</span><br></pre></td></tr></table></figure>
+<p>此时两个网络空间之间无法互相通信，需要有一根虚拟网线连接两个网络空间。这根虚拟网线就是
+<strong>veth</strong> (virtual ethernet)。veth
+总是成对出现的（相当于网线的两头），因此创建时是两个同时创建。使用<code>ip link</code>系列的<code>add</code>指令进行创建（同样，要删除只需要<code>ip link del dev xxx</code>）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 默认名字为 veth0 和 veth0</span></span><br><span class="line">sudo ip link add <span class="built_in">type</span> veth</span><br><span class="line"><span class="comment"># 或者也可以用自定义名字的方式：</span></span><br><span class="line"><span class="comment"># sudo ip link add name veth0 type veth peer name veth1</span></span><br></pre></td></tr></table></figure>
+<p>此时用<code>ip addr</code>指令应该可以看到这两个接口。接下来需要将两个接口分别绑定到两个网络空间：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip link <span class="built_in">set</span> veth0 netns net0</span><br><span class="line">sudo ip link <span class="built_in">set</span> veth1 netns net1</span><br></pre></td></tr></table></figure>
+<p>这样虚拟网线的两端就绑定到两个网络空间了。但是此时两个网络之间还是不能通信，因为veth端口还没有打开，且还没有分配IP地址，因此要打开接口并分配地址：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 打开接口</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> veth0 up</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip link <span class="built_in">set</span> veth1 up</span><br><span class="line"><span class="comment"># 分配 IP 地址，这里以 192.168.0.2/24 和 192.168.0.3/24 为例(/24是子网掩码)</span></span><br><span class="line"><span class="comment"># ip a 是 ip addr 的缩写</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip a add 192.168.0.2/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip a add 192.168.0.3/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>分配好之后还需要手动配置路由，否则无法互相找到，使用<code>ip r</code>指令(是<code>ip route</code>的缩写)</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 表示所有192.168.0.x的地址都通过veth0和veth1寻找</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip r add 192.168.0.0/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip r add 192.168.0.0/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>这样两个子网就可以互相ping通了，即可以互相通信了：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ping 192.168.0.3 <span class="comment"># 从net0 ping net1</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ping 192.168.0.2 <span class="comment"># 从net1 ping net0</span></span><br></pre></td></tr></table></figure>
+<p>至此两个互相能通信的子网已经建立。</p>
+<h2 id="二pppoe">二、PPPoE</h2>
+<h3 id="server-搭建">1. server 搭建</h3>
+<p>安装 PPPoE server：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoe</span><br></pre></td></tr></table></figure>
+<p>通过<code>vim /etc/ppp/options</code> 编辑 PPPoE 的配置文件并删除
+<code>#+chap</code> 行首的注释符 <code>#</code>。</p>
+<p>通过 <code>vim /etc/ppp/pppoe-server-options</code> 进行 server
+的配置，写入：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">require-chap</span><br><span class="line">lcp-echo-interval 60</span><br><span class="line">lcp-echo-failure 5</span><br><span class="line">logfile &#x2F;var&#x2F;log&#x2F;pppd.log</span><br></pre></td></tr></table></figure>
+<p>通过 <code>vim /etc/ppp/chap-secrets</code> 编辑 server
+端认证的帐号密码，在最后一行加入：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">test</span> * 123456 *  <span class="comment"># client/server/secret/IP address</span></span><br></pre></td></tr></table></figure>
+<p>这里注意，因为本实验中 server 和 client
+其实是同一台机器模拟的两个网络空间，即配置文件是共用的，因此在配置客户端的时候可能会把服务端的配置覆盖，需要配置完客户端后重新回来把被覆盖的部分加上。</p>
+<p>之后启动server即可（注意在 net0 空间中启动）</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -I 后跟的是使用的interface，选择和 net1 连接的 veth0，-L 指定server在子网中的地址，-R指定接入client的地址分配的起始点，-N指定允许的最多client</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 sudo pppoe-server -I veth0 -L 10.0.0.1 -R 10.0.0.2 -N</span><br><span class="line">20</span><br></pre></td></tr></table></figure>
+<h3 id="client-搭建">2. client 搭建</h3>
+<p>安装pppoeconf：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoeconf</span><br></pre></td></tr></table></figure>
+<p>在子网<code>net1</code>中运行pppoeconf，并且指定使用<code>veth1</code>接口：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 pppoeconf veth1</span><br></pre></td></tr></table></figure>
+<p>按顺序：popular
+options，选否；用户名，删掉默认的username，输入test；密码，输入123456；User
+peer DNS，选是；Limited MSS Problem，选是；Start connection at boot
+time，否；Establish a Connection，否。</p>
+<p>此时pppoeconf应该覆盖了原先server端的<code>chap-secrets</code>，需要把<code>test * 123456 *</code>
+重新加回配置文件。</p>
+<p>更改结束后如果需要开启client连接，只需要在net1网络空间下运行<code>sudo pon dsl-provider</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>查看状态可以使用<code>sudo plog</code>，关闭连接可以用<code>sudo poff</code></p>
+<h2 id="三使用-tcpdump-抓包">三、使用 tcpdump 抓包</h2>
+<p>我们需要在运行<code>pon dsl-provider</code>之前开启抓包，这样就能得到客户端进行连接时和server进行的交互信息。在客户端抓包还是在服务端抓包是一样的，只是发送的和接收的相反而已。在客户端抓包：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -i 为选择监听的 interface，-v 为 verbose（显示详细信息），-n 为不翻译地址（即不用dns翻译，可以加快速度），-w 为设置数据存储路径（存为pcap文件，可以用wireshark进行分析）</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 tcpdump -i veth1 -vn -w packet.cap</span><br></pre></td></tr></table></figure>
+<p>此时已经tcpdump已经开始监听 net1 的 veth1
+了，之后所有通过这个接口发送的包都会被存下来，此时再开始连接过程：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>连接完成后再关闭监听，此时所有连接过程的包都已经被保存到<strong>packet.cap</strong>文件中了，使用<strong>wireshark</strong>打开即可得到PPPoE各阶段的报文：</p>
+<figure>
+<img src="all.png" alt="all" />
+<figcaption aria-hidden="true">all</figcaption>
+</figure>
 ]]></content>
       <categories>
         <category>Linux</category>
       </categories>
       <tags>
-        <tag>p2p</tag>
-        <tag>NAT</tag>
+        <tag>netns</tag>
+        <tag>PPPoE</tag>
+        <tag>tcpdump</tag>
       </tags>
   </entry>
   <entry>
@@ -2374,270 +2573,6 @@ representations and can inspire further search in this direction.</p>
       </tags>
   </entry>
   <entry>
-    <title>Minecraft Java版服务器搭建（Linux）与客户端连接</title>
-    <url>/2020/09/09/Minecraft/</url>
-    <content><![CDATA[<p>因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用
-java
-版进行联机。但是因为之前已经有基岩版了，所以这次不太想因为换版本再给
-mojang
-氪金，然后发现offline模式不需要氪金，但是只能进行局域网连接。思考一阵以后觉得反正是用
-Linux 建的服务器，那完全可以用 ssh
-端口转发的方式把远端服务器加进局域网（实际是加到127.0.0.1），尝试了一下果然成功了！但成功以后发现原来其实offline模式也是可以连私人服务器的。。。anyway记录一下整个过程！<a id="more"></a></p>
-<h2 id="一服务端搭建linux">一、服务端搭建（Linux）</h2>
-<p>在配置之前需要准备一台装有Linux系统的服务器，可以是自己的破旧电脑改装的，也可以是VPS。</p>
-<h3 id="建立-java-运行环境">1. 建立 java 运行环境</h3>
-<p>如果是 ubuntu 系统，只需要安装默认的 java runtime environment （java
-re）即可：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install default-jre</span><br></pre></td></tr></table></figure>
-<p>其他 Linux 发行版用各自对应的包管理器安装即可。或者按照 java 的<a
-href="https://www.java.com/zh_CN/">官方网站</a>提供的教程进行安装</p>
-<h3 id="下载服务器-jar-文件">2. 下载服务器 jar 文件</h3>
-<p>可以在这个网站：<a
-href="https://mcversions.net/">https://mcversions.net/</a>
-找到各个版本的服务端 jar 文件。注意下载的时候要选择“server
-jar“。如果在远程服务器上下载，可以复制下载链接以后用
-<code>wget</code>、<code>aria2c</code> 等命令行下载器进行下载。</p>
-<p><img src="serverjar.png" alt="serverjar" style="zoom:36%;" /></p>
-<p>下载后的文件名为”server.jar“</p>
-<h3 id="启动服务器">3. 启动服务器</h3>
-<p>先进入服务器jar文件所在的目录。</p>
-<p>第一步是进行初始化：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar server.jar --initSettings</span><br></pre></td></tr></table></figure>
-<p>这步会自动创建初始的 <strong>server.properties</strong>
-配置文件以及协议文件
-<strong>eula.txt</strong>。前者存储的是服务端世界的基本配置，大致如下：</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">#Minecraft server properties</span><br><span class="line">spawn-protection&#x3D;16</span><br><span class="line">max-tick-time&#x3D;60000</span><br><span class="line">query.port&#x3D;25565</span><br><span class="line">generator-settings&#x3D;</span><br><span class="line">sync-chunk-writes&#x3D;true</span><br><span class="line">force-gamemode&#x3D;false</span><br><span class="line">allow-nether&#x3D;true</span><br><span class="line">enforce-whitelist&#x3D;false</span><br><span class="line">gamemode&#x3D;survival</span><br><span class="line">broadcast-console-to-ops&#x3D;true</span><br><span class="line">enable-query&#x3D;false</span><br><span class="line">player-idle-timeout&#x3D;0</span><br><span class="line">difficulty&#x3D;easy</span><br><span class="line">spawn-monsters&#x3D;true</span><br><span class="line">broadcast-rcon-to-ops&#x3D;true</span><br><span class="line">op-permission-level&#x3D;4</span><br><span class="line">pvp&#x3D;true</span><br><span class="line">entity-broadcast-range-percentage&#x3D;100</span><br><span class="line">snooper-enabled&#x3D;true</span><br><span class="line">level-type&#x3D;default</span><br><span class="line">hardcore&#x3D;false</span><br><span class="line">enable-status&#x3D;true</span><br><span class="line">enable-command-block&#x3D;false</span><br><span class="line">max-players&#x3D;20</span><br><span class="line">network-compression-threshold&#x3D;256</span><br><span class="line">resource-pack-sha1&#x3D;</span><br><span class="line">max-world-size&#x3D;29999984</span><br><span class="line">function-permission-level&#x3D;2</span><br><span class="line">rcon.port&#x3D;25575</span><br><span class="line">server-port&#x3D;25565</span><br><span class="line">server-ip&#x3D;</span><br><span class="line">spawn-npcs&#x3D;true</span><br><span class="line">allow-flight&#x3D;false</span><br><span class="line">level-name&#x3D;world</span><br><span class="line">view-distance&#x3D;10</span><br><span class="line">resource-pack&#x3D;</span><br><span class="line">spawn-animals&#x3D;true</span><br><span class="line">white-list&#x3D;false</span><br><span class="line">rcon.password&#x3D;</span><br><span class="line">generate-structures&#x3D;true</span><br><span class="line">online-mode&#x3D;true</span><br><span class="line">max-build-height&#x3D;256</span><br><span class="line">level-seed&#x3D;</span><br><span class="line">prevent-proxy-connections&#x3D;false</span><br><span class="line">use-native-transport&#x3D;true</span><br><span class="line">enable-jmx-monitoring&#x3D;false</span><br><span class="line">motd&#x3D;A Minecraft Server</span><br><span class="line">rate-limit&#x3D;0</span><br><span class="line">enable-rcon&#x3D;false</span><br></pre></td></tr></table></figure>
-<p>如果想要详细的解释可以参考 mc 的 wiki： <a
-href="https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh">https://minecraft-zh.gamepedia.com/index.php?title=Server.properties&amp;variant=zh</a>。</p>
-<p>后者是使用者需要遵守的一系列规则，看完（直接跳到最后）以后要输入<strong>"eula=true"</strong>表示同意遵守这些规则。</p>
-<p>第二步就是启动服务器了，最后的参数<code>-nogui</code>是不需要跳出图形界面的意思：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms512M -Xmx1024M -jar server.jar -nogui</span><br></pre></td></tr></table></figure>
-<p>此时如果想关掉终端还能让服务器开着，可以使用 <strong>screen</strong>
-软件。</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install screen</span><br></pre></td></tr></table></figure>
-<p>安装完成后开启一个给 mc 的 session：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">screen -S mc_server <span class="comment"># mc_server是这个session的名字，可以自定义</span></span><br></pre></td></tr></table></figure>
-<p>在新跳出的窗口中重新运行第二步启动服务器的命令即可。要跳出这个窗口默认的按键是<code>Ctrl+A+D</code>，想再回到这个session对服务器的状态进行查看则需要<code>screen -r mc_server</code>即可。如果想对screen的使用进行个性化配置的话可以自行搜索一下。screen的使用方法这里只介绍三个最常用的：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">screen -S session_name	<span class="comment"># 开起名为session_name的session</span></span><br><span class="line">screen -r session_name	<span class="comment"># 从detached状态恢复名为session_name的session</span></span><br><span class="line">screen -list			<span class="comment"># 列出当前所有session</span></span><br></pre></td></tr></table></figure>
-<p>如果想对服务器进行命令交互可以先输入 <strong>help</strong>
-获取帮助，再从中选取自己需要的指令进行交互。例如停止服务器的指令是<code>\stop</code></p>
-<h3 id="进行内网穿透">4. 进行内网穿透</h3>
-<h4 id="原理">原理</h4>
-<p>如果服务器没有公网IP，例如是用家中废旧电脑搭建的服务器，因为是在运营商给的入网点，肯定是内网IP，此时直接靠IP就不能让别人访问到服务器，因此需要进行内网穿透。公网IP是很少的，除了网上租用VPS会给公网IP外，其他渠道连入互联网几乎都是内网IP（平时常见的192.168.x.x的就是路由器给的局域网中的IP）。总之内网IP是不能被外界直接访问的，只有公网IP才可以。</p>
-<p>内网穿透的原理就是处于内网中的服务器的一个端口映射到一个公网IP，这样访问那个公网IP的数据都会被转发到服务器的127.0.0.1，相当于直接从127.0.0.1访问服务器了。这个过程需要有一个具有公网IP的主机进行数据的转发才能进行，很幸运已经有提供这样的服务的人了。</p>
-<h4 id="使用sakura-frp进行内网穿透">使用sakura frp进行内网穿透</h4>
-<p><a href="https://www.natfrp.com/" target="_blank" rel="noopener">sakura frp</a>
-提供一定额度的内网穿透流量，而且可以通过每日签到增加流量，如果服务器加入的人不是太多的话，一般都是够用的。首先进入网站主页：<a
-href="https://www.natfrp.com/">https://www.natfrp.com/</a>，注册+登录。</p>
-<p><img src="sakura.png" alt="sakura" style="zoom:75%;" /></p>
-<p>登录进去后发现其实因为有很多人用这个软件都是为了建 Minecraft
-的服务器，所以网站已经有现成的为建 MC
-服务器而进行内网穿透的教程了，可以选择直接看它的教程。</p>
-<p><img src="tutorial.png" alt="tutorial" style="zoom:50%;" /></p>
-<p>基本思路就是先在左侧列表中 <strong>内网穿透</strong> -&gt;
-<strong>创建隧道</strong>
-处进行隧道创建。服务器选择只要不是海外的基本都可以（海外的延迟太高了），隧道名称自定义，本地端口填你的
-mc
-服务器监听的端口，隧道类型要选TCP（和基岩版不一样，基岩版用的是udp方法），本地地址就用默认的127.0.0.1即可，远程端口可以填自己喜欢的，也可以空着自动生成（因为你喜欢的可能基本都被别人先抢了）。</p>
-<p><img src="tunnel.png" alt="tunnel" style="zoom:50%;" /></p>
-<p>创建完之后会跳出开启隧道的指令，先复制下来即可。然后去
-<strong>内网穿透</strong> -&gt; <strong>软件下载</strong>
-处选择适合自己系统（mc
-服务器所在的系统）的内网穿透客户端，按照网站主页提供的客户端使用教程开启隧道即可。</p>
-<p><img src="launcher.png" alt="launcher" style="zoom:50%;" /></p>
-<p>开启隧道后会告诉你公网的ip或者域名，此时用那个ip或域名加上之前填的远程端口的端口号就能对
-mc 服务器进行访问。</p>
-<h3 id="服务器性能优化可选">5. 服务器性能优化（可选）</h3>
-<p>有些时候可能开服的主机性能不是很好，但是又想和更多的小伙伴一起玩，这个时候为了尽量避免卡顿，就需要对服务器进行优化。</p>
-<h4
-id="服务器配置优化server.properties">服务器配置优化（server.properties）</h4>
-<ul>
-<li>view-distance 一栏表示的是所看的方向加载的 chunk 数量，默认是
-10，可以调到 6。如果人比较多甚至可以调到
-4。不过调太低会造成远方的地形看不清，可能会影响游戏体验。</li>
-<li>generate-structures
-一栏是指是否会加载已经被发现的地牢、神殿等特殊建筑，默认是
-true，随着这类建筑发现变多，可能会给服务器带来比较大的负担，因为明明没人在附近却还是要加载。所以可以设置成
-false。</li>
-<li>useSMPAPI 一项是是否使用多核，设置为 true
-开启多核模式。本项默认是不存在的，因此要自己添加
-<code>useSMPAPI=true</code></li>
-</ul>
-<h4 id="jvm-启动参数优化">JVM 启动参数优化</h4>
-<p>一组通用参数优化方法：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=<span class="literal">true</span> -jar paper-x.x.x.jar nogui</span><br></pre></td></tr></table></figure>
-<p>其中<code>-Xms</code> 指最小分配内存，<code>-Xmx</code>
-指最大分配内存，这两者根据主机性能不同需要自己设置，其他参数据作者说是在各种主机上都普适的。提出这些参数的原文地址是：<a
-href="https://aikar.co/category/minecraft/">https://aikar.co/category/minecraft/</a>。需要更具体的解释可以参考原文。尝试了一下优化效果确实还是很明显的。</p>
-<h4 id="使用第三方开发的服务端">使用第三方开发的服务端</h4>
-<h5 id="选择一使用-papermc-建立服务端">选择一：使用 PaperMC
-建立服务端</h5>
-<p>PaperMC也叫PaperSpigot，有对 mc
-的服务器进行专门的优化，可以使服务器性能大幅提升。Paper
-的说明文档在这里：<a
-href="https://paper.readthedocs.io/en/latest/server/index.html">https://paper.readthedocs.io/en/latest/server/index.html</a>，里面还是有比较详细的说明的。使用
-paper 的方式就是先下载 paper 的服务端：<a
-href="https://papermc.io/downloads">https://papermc.io/downloads</a>（paper的版本应该就对应服务端的版本，选择适合自己的版本）。然后直接启动即可：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -Xms768M -Xmx1024M -jar paper-x.x.x.jar	<span class="comment"># Xms和Xmx根据自己主机的内存选择</span></span><br></pre></td></tr></table></figure>
-<p>如果想继承原来的存档，直接把之前 <strong>server.jar</strong>
-所在文件夹里的全部内容复制到 paper 服务器的目录下即可。不过 paper
-对于存档的存储方式和普通的服务器（称之为 Vanilla）有点微差。paper
-将地狱（nether）和末地（the
-end）的内容用额外创建世界的方式进行存储，而原版服务器则是存到
-<strong>world</strong> 文件夹下的 <strong>DIM-1</strong> 和
-<strong>DIM1</strong> 中。不过从Vanilla 转 paper
-的存储方式你无需做任何更改，复制进去以后首次运行 paper
-服务器它会<strong>自动进行转换</strong>。但是如果想<strong>从 paper
-再转回 Vanilla</strong>，则需要找到 <strong>world_nether</strong> 和
-<strong>world_the_end</strong> 文件夹，分别将里面的
-<strong>DIM-1</strong>， <strong>DIM1</strong> 文件夹复制到
-<strong>world</strong> 文件夹内。即文件树从上面这个变成下面这个：</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">+-- world</span><br><span class="line">| 	+-- ...（其他文件）</span><br><span class="line">+-- wolrd_nether</span><br><span class="line">|   +-- DIM-1</span><br><span class="line">|   +-- ...（其他文件）</span><br><span class="line">+-- world_the_end</span><br><span class="line">|   +-- DIM1</span><br><span class="line">|   +-- ...（其他文件）</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">+-- world</span><br><span class="line">|	+-- DIM-1</span><br><span class="line">| 	+--	DIM1</span><br><span class="line">|	+-- ...（其他文件）</span><br></pre></td></tr></table></figure>
-<p>除此之外还需要注意的是 paper
-服务器默认关闭铁轨复制的特性，如果要打开需要编辑
-<strong>paper.yml</strong>，将里面的
-<strong>allow-piston-duplication</strong> 设置为
-<strong>true</strong>。在复制铁轨的时候你可能会觉得铁轨掉到地上就消失了，其实并没有，只是因为
-paper
-服务器默认开启了同类物品近距离合并，所以单个的铁轨都被合并到一个物品堆里了，看起来就像消失了一样。</p>
-<p>关于paper的其他参数的优化可以看<a
-href="https://ent.163.com/game/16/0129/14/BEGKSO4500314UFD.html">这篇文章</a>，里面有比较详细的介绍。</p>
-<h5 id="选择二使用-fabric-搭建服务端加入优化-mod">选择二：使用 fabric
-搭建服务端加入优化 MOD</h5>
-<p>准确来说fabric并不算第三方服务端，只是一个能为server加入 mod
-的集成工具链。fabric 搭建服务端可以加入 mod，而有很多 mod
-是专门为了优化游戏性能而存在的。</p>
-<p>首先需要去 fabric 官网下载 fabric 安装器。官网有给 mc server
-建立方法，详情在 <a
-href="https://fabricmc.net/use/?page=server">https://fabricmc.net/use/?page=server</a>。在写这篇文章的时候，fabric
-最新版本是 0.6.1.51，所以下载的方法为：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">wget -O fabric-installer-0.6.1.51.jar https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar <span class="comment"># wget 下载</span></span><br></pre></td></tr></table></figure>
-<p>或者使用curl下载：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.6.1.51/fabric-installer-0.6.1.51.jar -o fabric-installer-0.6.1.51.jar <span class="comment"># curl 下载</span></span><br></pre></td></tr></table></figure>
-<p>之后用安装器获取用于启动 mc server 的 fabric 启动器：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar fabric-installer-0.6.1.51.jar server -downloadMinecraft</span><br></pre></td></tr></table></figure>
-<p>其中的 <code>-downloadMinecraft</code> 是会自动下载最新的 mc server
-的 jar，也即前面步骤中的
-<strong>server.jar</strong>。由于下载速度可能非常慢，因此如果之前已经下好了
-server.jar，可以直接去掉这个参数，并把 server.jar
-复制到<strong>当前目录（fabric installer
-所在的目录）</strong>。指令完成后应该当前目录应该会多一个
-<strong>fabric-server-launcher.jar</strong>
-文件，以后启动服务器的指令就变为：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">java -jar fabric-server-launcher.jar</span><br></pre></td></tr></table></figure>
-<p>如果之前已经用前面的方式玩过服务器了，想要继承存档的话只要把之前
-<strong>server.jar</strong> 所在的文件夹的内容都复制到当前目录即可。</p>
-<p>接下来就是加装 mod 了。装 mod 的方法很简单，就是把 mod
-下载下来放到当前目录的 <strong>mods</strong> 文件夹里即可。mod 可以在 <a
-href="https://www.curseforge.com/minecraft/mc-mods">https://www.curseforge.com/minecraft/mc-mods</a>
-中进行搜索下载。在每个 mod 页面点击右上的 <strong>Download</strong>
-即可下载 mod 的 jar 包。</p>
-<p>第一个是 lithium，通过优化 mc 的内部模块运行效率达到降低 mspt
-的目的，从而使游戏更流畅。链接为：<a
-href="https://www.curseforge.com/minecraft/mc-mods/lithium">https://www.curseforge.com/minecraft/mc-mods/lithium</a>。</p>
-<p>第二个是 phosphor，作用是通过优化光照来降低卡顿，链接为：<a
-href="https://www.curseforge.com/minecraft/mc-mods/phosphor">https://www.curseforge.com/minecraft/mc-mods/phosphor</a></p>
-<p>装载 mod 的时候需要注意的一点是有些 mod
-可能还没跟上版本更新，所以下载前先看一眼 mod
-的描述中支持的版本，否则可能会造成服务端无法运行的错误。</p>
-<p>将 mod 的 jar 包放入当前目录的 mods 文件夹中即可重启服务器了。</p>
-<h5 id="推荐">推荐</h5>
-<p>从我本身的体验上来看，似乎 fabric 这种方法不一定能提供加速，因为加装
-mod 会要求额外的内存空间，对于内存比较吃紧的主机来说，加速 mod
-反而可能是个负担。我的主机是 32 位 2 核 CPU，2G内存，用了 fabric
-之后感觉反而有点减速，而 PaperMC
-的确是有比较好的加速效果，所以还是比较推荐用 PaperMC
-来做服务端的优化，</p>
-<h2 id="二客户端连接">二、客户端连接</h2>
-<h3 id="安装-java-re-环境">0. 安装 Java RE 环境</h3>
-<p>对于 Linux 的用户，可以按照服务端搭建介绍中的方法安装 Java RE
-环境。</p>
-<p>对于 Windows 用户，进入 <a href="https://www.java.com/en/" target="_blank" rel="noopener">java 8
-的官方网站</a>，点击<strong>java download</strong></p>
-<p><img src="java.png" alt="java" style="zoom:50%;" /></p>
-<p>之后直接拉到网页底部，注意不要点直接下载，而是点击 See all java
-downloads。因为直接下载的话可能根据浏览器的版本给你下载 32-bit 的
-java。而 mc 用 64-bit 的会更好一点。</p>
-<p><img src="javaall.png" alt="javaall" style="zoom:50%;" /></p>
-<p>之后找到 windows 的部分，点击 64-bit
-的版本进行下载，按照安装器的指引进行安装即可。</p>
-<p><img src="java64.png" alt="java64" style="zoom:50%;" /></p>
-<h3 id="安装启动器hmcl">1. 安装启动器：HMCL</h3>
-<p>HMCL（Hello Minecraft Launcher）是第三方的 MC Java
-版启动器，因为版本管理+登录一应具全，而且界面比较美观，没有内置广告，所以使用体验较好。用别的启动器只要能进入游戏也是可以的。</p>
-<p>HMCL再官方的github上进行下载：<a
-href="https://github.com/huanghongxun/HMCL/releases">https://github.com/huanghongxun/HMCL/releases</a>
-。</p>
-<p><img src="hmclgithub.png" alt="github" style="zoom:50%;" /></p>
-<p>windows 用户点击 <strong>exe</strong>
-文件下载即可，下载后双击即可运行。Linux 用户可以选择
-<strong>jar</strong> 文件后用 <code>java -jar HMCL-x.x.xxx.jar</code>
-打开，也可以用自己的包管理器直接安装。例如我使用 Manjaro 发行版，再
-archlinux 库中有官方的 HMCL 启动器，我使用的包管理器是
-<strong>yay</strong>，直接 <code>yay hmcl</code> 即可。</p>
-<h3 id="安装游戏本体">2. 安装游戏本体</h3>
-<p>打开启动器后首先跳出创建用户的页面，选择离线模式，输入你喜欢的用户名即可。这个用户名之后在加入服务器进行游戏的时候会显示出来。当然，如果已经给
-mojang 氪过金了，有持有 MC java 版的 mojang
-账号，直接登录也是可以的。</p>
-<p><img src="adduser.png" alt="addusr" style="zoom:50%;" /></p>
-<p>之后点击最上方工具栏中的<strong>安装新游戏版本</strong>进行游戏本体的安装，选择<strong>和服务器一样的版本</strong>。</p>
-<p><img src="enterinstall.png" alt="enterinstall" style="zoom:50%;" /></p>
-<p><img src="versionselect.png" alt="versionselect" style="zoom:50%;" /></p>
-<p>下面这个界面应该是装一些插件的，没有需求的话都不安装即可。点击<strong>安装</strong>以后会自动进行相关文件的下载和安装，慢慢等待安装完成。</p>
-<p><img src="install.png" alt="install" style="zoom:50%;" /></p>
-<p>安装完成后到<strong>游戏列表</strong>界面，点击测试游戏，待成功加载之后，下次启动就可以直接用右下角的开始游戏了：</p>
-<p><img src="testgame.png" alt="testgame" style="zoom:50%;" /></p>
-<p>如果过程中出现无法下载的错误，一是在<strong>启动器设置</strong>里检查自己的java版本是否是64-bit的，二是把下载源换成官方的下载源：</p>
-<p><img src="64check.png" alt="64chek" style="zoom:50%;" /></p>
-<p><img src="source.png" alt="source" style="zoom:50%;" /></p>
-<p>注意如果想把 hmcl.exe 移到别的地方，需要把同级目录下的
-<strong>hmcl.json</strong> 和 <strong>.minecraft</strong>
-文件夹同时移出，前者是 hmcl 的配置文件，后者装的是游戏本体文件。</p>
-<h3 id="连接服务器">3. 连接服务器</h3>
-<h4 id="直接连接私人服务器">直接连接私人服务器</h4>
-<p>先进入 <strong>Multiplayer</strong> 界面：</p>
-<p><img src="mul.png" alt="mul" style="zoom:50%;" /></p>
-<p>然后点击 <strong>add server</strong>：</p>
-<p><img src="addserver.png" alt="addserver" style="zoom:50%;" /></p>
-<p>Server Name 中填写的是你给这个服务器取的名字，可以自定义，Server
-Address 的格式是 <strong>IP:端口</strong> 。如果端口是默认的 25565
-的话可以省略。IP 可以是网址，也可以是直接的Ipv4地址。</p>
-<p><img src="serversetting.png" alt="serversetting" style="zoom:50%;" /></p>
-<p>点击Done之后稍稍等待一下刷新就可以进服务器了！</p>
-<p>这里需要注意的是如果朋友中有人是offline模式进入服务器的话，服务端需要在
-server.properties 里将 <strong>online-mode</strong> 设置成
-<strong>false</strong>。这个选项是是否检查连入的人持有mojang账号，offline模式是没有登录的，所以自然没有mojang账号。</p>
-<h4 id="offline-模式的另一种连接方式">offline 模式的另一种连接方式</h4>
-<p>原理是先用一个 <strong>ssh</strong>
-软件进行端口转发，把本地的某个端口（例如25565）和服务端的端口连接起来（服务器默认端口号是
-25565，在<strong>server.properties</strong>里可以查看），这样向本地的
-25565 端口收发消息，就相当于是从服务端的 127.0.0.1
-收发消息，相当于把服务端加入了局域网。</p>
-<p>需要先在服务端为想连入的人创建一个统一的linux新用户：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo useradd -m mc	<span class="comment"># mc 为用户名，可以自定义</span></span><br><span class="line">sudo passwd mc		<span class="comment"># 为新用户设置密码</span></span><br></pre></td></tr></table></figure>
-<h5 id="下载-ssh-软件putty">下载 ssh 软件（putty）</h5>
-<p>最新的版本在
-https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
-可以下载，找到 <strong>putty.exe</strong>，根据自己的电脑选择 64-bit 或
-32-bit 版本（一般电脑都是 64-bit 的）下载。</p>
-<p>开启软件后输入linux服务端的ip和端口。</p>
-<p><img src="user.png" alt="user" style="zoom:50%;" /></p>
-<p>然后再 SSH-&gt;Tunnels
-中MC的server运行的端口，然后点Open开启这个session，输入服务端给的用户名和密码即可。这样就完成的端口转发。如果再Linux上的话用
-<code>ssh</code> 指令即可完成，不需要多下载别的程序。</p>
-<p>之后的过程和前面的连接服务器的方式大致相同，不同点在于此时可以直接在
-local network 中搜索到服务端，如果要通过ip连接的话，需要用 127.0.0.1
-而不是服务端的 ip。</p>
-]]></content>
-      <categories>
-        <category>游戏</category>
-      </categories>
-      <tags>
-        <tag>Minecraft</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>Linux 下使用 Wine 安装 windows 版的微信</title>
     <url>/2020/11/12/Wechat/</url>
     <content><![CDATA[<p>一个令 Linux
@@ -2739,6 +2674,71 @@ href="https://zhuanlan.zhihu.com/p/76331687">Linux下通过Wine安装微信</a><
       </categories>
       <tags>
         <tag>Wine</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>使用 Zerotier 进行 p2p 连接</title>
+    <url>/2021/10/23/Zerotier/</url>
+    <content><![CDATA[<p>​
+在一些场景下需要在两台不同内网中的主机间建立连接。例如在家里放了一台常开的电脑，电脑处于家中内网中，平时我们在外面无法直接访问。此时有两种解决方案。第一种是利用<a
+href="https://www.natfrp.com/">Sakura
+Frp</a>等内网端口映射的工具，但是如果通信流量较大（比如在家里电脑上开网站、代理等），就会被内网映射服务的限速、限额影响。第二种方案就是进行p2p连接，公网服务器只用于协助建立两台主机的连接，建立完连接后两台主机之间直接通信，而不用再通过公网服务器。Zerotier就提供这样的服务，并且提供一台免费的公网服务器。<a id="more"></a>p2p连接是基于NAT穿透实现的，而NAT穿透的原理搜索即可，有很多优质博客。本文只记录使用方法。</p>
+<h2 id="一安装">一、安装</h2>
+<p>首先按照<a
+href="https://www.zerotier.com/">Zerotier官网</a>的指导安装工具，Windows和MacOs都是带GUI的APP，Linux为命令行工具<code>zerotier-cli</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -s https://install.zerotier.com | sudo bash</span><br></pre></td></tr></table></figure>
+<p>安装完成后zerotier会自动生成一个随机token，在
+/var/lib/zerotier-one/authtoken.secret
+中，通常需要sudo权限才能查看。同时zerotier会自动启动 zerotier-one
+服务，在 localhost:9993 启动 API
+后端，与后端的交互需要token进行权限验证。服务状态可以用<code>systemctl status zerotier-one</code>
+查看，如果没有启动可以用 <code>systemctl start zerotier-one</code>
+手动启动服务。</p>
+<h2 id="二建立网络">二、建立网络</h2>
+<p>我们使用self-hosting的方式构建网络，即某一个客户端同时也是网络的controller（可以用来管理网络准入、ip分配等，但并不是p2p连接中所需要的中间公网服务器，中间公网服务器仍由zerotier提供）。官方的指导在<a
+href="https://docs.zerotier.com/self-hosting/network-controllers">这里</a>。我们用<strong>主机A</strong>来建立controller。</p>
+<p>由于每次使用API都需要token验证，因此为了方便，首先将token放入环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">TOKEN=$(sudo cat /var/lib/zerotier-one/authtoken.secret)</span><br></pre></td></tr></table></figure>
+<p>一台主机在网络（Network）中是一个节点（Node），并会被zerotier分配一个10位的节点id。主机加入虚拟网络时会通过节点id来寻找该网络的controller。可以通过两种方式查询当前主机的节点id：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 通过zerotier-cli，返回 200 info 节点id 版本号 online</span></span><br><span class="line">sudo zerotier-cli info</span><br><span class="line"><span class="comment"># 通过API，节点id在"address"字段</span></span><br><span class="line">curl <span class="string">"http://localhost:9993/status"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>为了方便，将节点id加入环境变量</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">NODEID=your-node-id</span><br></pre></td></tr></table></figure>
+<p>接下来我们用当前的节点作为controller创建一个虚拟网络。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NODEID&#125;</span>______"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d &#123;&#125;</span><br></pre></td></tr></table></figure>
+<p>通过post请求建立网络，会生成一个随机的16位网络id。为了方便，将网络id加入环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">NWID=your-network-id</span><br></pre></td></tr></table></figure>
+<p>可以通过以下指令查看当前节点管理的所有网络的id：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>通过以下指令可以查看指定网络的信息配置信息：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>通过以下指令可以查看加入当前网络的所有节点，在没有节点加入该网络时，返回的是空：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>接下来设置网络的ip分配，并设置为private网络，这样别的节点加入网络就需要controller的授权：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ipRangeStart和ipRangeEnd指定了子网ip分配的范围</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> \</span><br><span class="line">-d <span class="string">'&#123;"ipAssignmentPools": [&#123;"ipRangeStart": "192.168.192.1", "ipRangeEnd": "192.168.192.254"&#125;], "routes": [&#123;"target": "192.168.192.0/24", "via": null&#125;], "v4AssignMode": "zt", "private": true &#125;'</span></span><br></pre></td></tr></table></figure>
+<h2 id="三加入网络">三、加入网络</h2>
+<p>在另一台主机B上安装zerotier，并通过以下指令加入刚创建的网络：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># network-id是16位的网络id</span></span><br><span class="line">sudo zerotier-cli join network-id</span><br></pre></td></tr></table></figure>
+<p>此时再在<strong>主机A</strong>上查看网络所含节点，应当包含<strong>主机B</strong>的节点id，并且是字典的key，value为1：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>需要在controller（<strong>主机A</strong>）上进行授权：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># MEMID是主机B的节点id</span></span><br><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": true&#125;'</span></span><br></pre></td></tr></table></figure>
+<p>此时再查看节点成员列表，<strong>主机B</strong>的value会变成3。注意<strong>主机A</strong>是controller只代表它是类似于路由器的存在，因此需要用同样的方法将<strong>主机A</strong>自己也加入网络才能使AB互相访问。</p>
+<p>完成之后在主机AB上分别使用<code>ip addr</code>查看自己的网络接口，会看到里面多了<strong>zt开头的</strong>网络接口以及主机在虚拟网络中的ip地址，使用虚拟网络中的ip地址即可互相访问。例如<strong>主机A</strong>的地址是192.168.192.5，<strong>主机B</strong>的地址是192.168.192.6，在<strong>主机A</strong>上可以通过<code>ssh user@192.168.192.6</code>使用ssh连接<strong>主机B</strong>。如果<strong>主机A</strong>在0.0.0.0:8080开了一个网站，在<strong>主机B</strong>上也可以使用192.168.192.5:8080进行访问。主机的ip地址是根据public
+key算出来的，算法在identity.cpp里，因此同一主机的ip是固定的。</p>
+<h2 id="四其他">四、其他</h2>
+<p>如果要取消对某个节点的授权，可以在controller上使用以下指令：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X POST <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span> -d <span class="string">'&#123;"authorized": false&#125;'</span></span><br></pre></td></tr></table></figure>
+<p>如果要从网络中删除某个成员，可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">curl -X DELETE <span class="string">"http://localhost:9993/controller/network/<span class="variable">$&#123;NWID&#125;</span>/member/<span class="variable">$&#123;MEMID&#125;</span>"</span> -H <span class="string">"X-ZT1-AUTH: <span class="variable">$&#123;TOKEN&#125;</span>"</span></span><br></pre></td></tr></table></figure>
+<p>如果想要清理掉这些网络，可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 先停止zerotier服务</span></span><br><span class="line">systemctl stop zerotier-one</span><br><span class="line"><span class="comment"># 删除现在的服务配置</span></span><br><span class="line"><span class="built_in">cd</span> /var/lib/zerotier-one/</span><br><span class="line">rm -rf ./controller.d/</span><br><span class="line"><span class="comment"># 重新启动zerotier服务</span></span><br><span class="line">systemctl start zerotier-one</span><br></pre></td></tr></table></figure>
+]]></content>
+      <categories>
+        <category>Linux</category>
+      </categories>
+      <tags>
+        <tag>p2p</tag>
+        <tag>NAT</tag>
       </tags>
   </entry>
 </search>
