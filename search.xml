@@ -578,194 +578,6 @@ Implicit Generative Models</a></p>
       </tags>
   </entry>
   <entry>
-    <title>GNN（一）：图的表征学习</title>
-    <url>/2020/06/24/GNNrepr/</url>
-    <content><![CDATA[<p>机器学习的第一件事是需要将训练所用的未处理的数据（raw
-data）转化为具有一定格式的数据（structured
-data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word
-embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如
-word embedding
-所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。<a id="more"></a></p>
-<h2 id="一embedding-nodesnode2vec">一、Embedding Nodes（node2vec）</h2>
-<p>将节点通过一个编码器（encoder）映射为高维空间的向量来表示节点。映射后的向量需要满足的条件是：两个节点对应的向量能反应这两个节点在原图中的相似性。向量的相似性即两者的夹角，因此可以用点乘来的值来表示。如果需要表示的节点为<span
-class="math inline">\(u,v\)</span>，而经 encoder 得到的向量为<span
-class="math inline">\(\bf{z_v},\bf{z_u}\)</span>，则应满足： <span
-class="math display">\[
-similarity(u, v)\approx \bf{z_v}^T\bf{z_u}
-\]</span> 因此图中节点的表示学习的方法就可以用三个步骤表示：</p>
-<ol type="1">
-<li>定义一个 encoder，用来将节点的 one-hot 编码映射成固定维度的向量</li>
-<li>定义一个描述原图中两个节点相似性的函数 <span
-class="math inline">\(similarity\)</span></li>
-<li>优化 encoder 中的参数使得最后符合 <span
-class="math inline">\(similarity(u, v)\approx
-\bf{z_v}^T\bf{z_u}\)</span></li>
-</ol>
-<h3 id="定义-encoder">1. 定义 encoder</h3>
-<p>此部分比较简单，参考NLP中的 word embedding，只需要对 one-hot
-的编码进行矩阵乘即可。 <span class="math display">\[
-\begin{array}{cc}
-v \in \mathbb{I}^{|V|}\\
-\bf{Z} \in\mathbb{R}^{d\times |V|}
-\end{array}
-\]</span> 则对应节点 <span class="math inline">\(v\)</span>
-的嵌入向量为： <span class="math display">\[
-\mathbf{z_v} =\mathbf{Z} v,\ \mathbf{z_v}\in \mathbb{R}^d
-\]</span> 这样的方法其实相当于 embedding 矩阵 <span
-class="math inline">\(\mathbf{Z}\)</span>
-的每一列就对应一个节点的表示向量。维度 <span
-class="math inline">\(d\)</span> 是超参，在网络构建前确定。</p>
-<h3 id="定义-similarity">2. 定义 similarity</h3>
-<p>这部分是节点表示学习的关键，不同的 similarity
-定义的方法会带来不同的损失函数，节点最后的表示向量的适用任务也不一样。比较容易想到的有两种定义
-similarity 的方法：</p>
-<ol type="1">
-<li>两个点相互连接则定义为相似（Adjaceny-based）</li>
-<li>两个点的共同的邻居数量表示相似程度（Multi-hop similarity
-definations）</li>
-</ol>
-<p>但这两种显然都只是考虑了图的局部性质，有比较大的局限性。因此更常用的方法是
-Random Walk Approaches。</p>
-<h4 id="random-walk-approaches">Random Walk Approaches</h4>
-<h5 id="原理">原理</h5>
-<p>首先定义什么叫 <strong>random
-walk</strong>：在给定的图中选定一个点<span
-class="math inline">\(v\)</span>为起点，随机选择其邻接的点<span
-class="math inline">\(v_1\)</span>作为下一个点，再随机选择<span
-class="math inline">\(v_1\)</span>邻接的点<span
-class="math inline">\(v_2\)</span>作为下一个点，直到路径达到指定的长度。这样随机选出的一个点序列称为一个
-<strong>random walk</strong>。</p>
-<p>那么可以定义两点（<span
-class="math inline">\(u,v\)</span>）之间的相似度为这两点出现在同一条
-<strong>random walk</strong> 中的概率。</p>
-<p>使用这种定义方法的好处是同时考虑到了局部和全局的相似关系，因为根据不同的随机策略以及不同的路径长度可以均衡关注局部和关注全局的两种倾向。同时也不需要考虑所有的点对，只需要考虑在随机过程中每条<strong>random
-walk</strong> 中出现的点对即可。</p>
-<h5 id="生成策略">生成策略</h5>
-<p>最简单的生成策略是固定路径的长度，每次随机一个邻接的点作为下一步。但这样的方式过于简单，无法对其的
-focus 进行人工调整。因此在 node2vec
-的实现当中，使用的是有偏的选择道路的方式（Biased Walks）。</p>
-<p>两种经典的有偏的选择道路的方式即广度优先（BFS）和深度优先（DFS）。可以很明显地看出来，广度优先更聚焦于局部（Local）的节点连接状况（Micro-view
-of
-Neighborhood），深度优先则更关注全局（Global）的节点连接状况（Macro-view
-of
-Neighborhood）。与一个点连接的周围点根据其性质分为三种情况：前一个节点，距离起点一样的节点，距离起点更远的节点。</p>
-<p><img src="three_types_of_point.png" alt="types" style="zoom:50%;" /></p>
-<p>为了平衡这些关系，node2vec 在实现中定义了两个超参：</p>
-<ul>
-<li>p：return parameter，描述返回上一节点的概率</li>
-<li>q：in-out parameter，描述局部和全局的平衡</li>
-</ul>
-<p>以<span
-class="math inline">\(1、\frac{1}{q}、\frac{1}{p}\)</span>来表示前往更近的节点、前往更远的节点、返回前一节点的概率（还没有归一化）。例如对以下的图，<span
-class="math inline">\(s_1\)</span>为父节点，<span
-class="math inline">\(s_2\)</span>为距起点<span
-class="math inline">\(u\)</span>距离为2的点，<span
-class="math inline">\(s_3\)</span>和<span
-class="math inline">\(s_4\)</span>为距起点距离为3的点，当前点为<span
-class="math inline">\(w\)</span>，则前往<span
-class="math inline">\(s_2\)</span>的概率为<span
-class="math inline">\(\frac{1}{1+\frac{1}{p}+2\times
-\frac{1}{q}}\)</span>。</p>
-<p><img src="probability.png" alt="pro" style="zoom:50%;" /></p>
-<p>可以见到，越低的<span
-class="math inline">\(p\)</span>值，越倾向于关注局部，越低的<span
-class="math inline">\(q\)</span>值，越倾向于全局。给定不同的参数值，就可以对节点表示学习的关注点进行调节。</p>
-<h3 id="参数优化optimization">3. 参数优化（Optimization）</h3>
-<p>要使用梯度下降的方法进行训练，首先需要得到一个目标的损失函数。</p>
-<h4 id="损失函数loss">损失函数（Loss）</h4>
-<p>以 <span class="math inline">\(N_R(u)\)</span> 表示以方法 <span
-class="math inline">\(R\)</span> 得到的点 <span
-class="math inline">\(u\)</span> 的邻居点集合，这些邻居点被认为是和点
-<span class="math inline">\(u\)</span>
-有一定程度相似的（邻居点不一定是邻接的点）。例如方法 <span
-class="math inline">\(R\)</span> 为 random walk approaches 时，<span
-class="math inline">\(N_R(u)\)</span> 表示的就是在点 <span
-class="math inline">\(u\)</span> 出现的所有 random walk
-中的其他点的集合。注意这个集合中是允许出现重复点的，例如在 random walk
-approaches 中可能随机到往回走，这样某个点就可能多次被走到。</p>
-<p>则优化目标应该是最大化给定各个点，<span
-class="math inline">\(N_R\)</span>中的点是它们的邻居点的条件概率，同样用取
-log 的方式将乘法变成加法： <span class="math display">\[
-\max_z\sum_{u\in V}\log P(N_R(u)|u)
-\]</span> 用 softmax 方法进行点<span
-class="math inline">\(v\)</span>是点<span
-class="math inline">\(u\)</span>的邻居点的条件概率计算，则对应的损失函数为：
-<span class="math display">\[
-\begin{array}{cc}
-\mathcal L = \sum_{u\in V}\sum_{v \in N_R(u)}-\log P(v|\mathbf{z_u})\\
-其中\ P(v|\mathbf{z_u}) =
-\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
-V}\mathbf{z_u}^T\mathbf{z_n}}
-\end{array}
-\]</span></p>
-<h4 id="负采样negative-sampling简化">负采样（Negative
-Sampling）简化</h4>
-<p>但是这么做对loss的计算复杂度是非常高的，在最外面的求和符号是<span
-class="math inline">\(O(|V|)\)</span>的循环次数，在计算 softmax
-的时候又需要循环 <span class="math inline">\(O(|V|)\)</span> 次，总共是
-<span class="math inline">\(O(|V|^2)\)</span>
-的复杂度。因此在实际使用中采取负采样（negative
-sampling）的方法进行近似（注意是效果上的近似，并不能靠数学公式推导得出）：
-<span class="math display">\[
-\begin{array}{cc}
-\log(\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
-V}\mathbf{z_u}^T\mathbf{z_n}})\approx \log(\sigma
-(\mathbf{z_u}^T\mathbf{z_v}))) - \sum_{i=1}^k \log
-(\sigma(\mathbf{z_u}^T\mathbf{z_{n_i}}))) \\
-其中\ \sigma\ 是 sigmoid 函数 f(x) =
-\frac{1}{1+e^{-x}}，n_i是在所有点的编号中进行随机选取的编号
-\end{array}
-\]</span>
-严格来说约等号的两侧是不同的函数，但优化后者一定程度上和优化前者得到的效果是一样的。负采样的思想是得到一个点的“真实得分”，再加上一些“噪声”作为最后的得分。这也就是为什么需要加用sigmoid函数，因此sigmoid函数可以把实数映射到<span
-class="math inline">\((0, 1]\)</span>区间，正好作为概率的代表。其中<span
-class="math inline">\(k\)</span>的取值越大，训练的结果泛化能力越强，一般情况下<span
-class="math inline">\(k\)</span>取 5～20。</p>
-<h2 id="二embedding-entire-graph">二、Embedding Entire Graph</h2>
-<p>有了对节点的表示学习之后，还可以进一步对一张图（整图或子图）进行编码。常见的也有三种方法。</p>
-<h3 id="加和平均">1. 加和/平均</h3>
-<p>首先使用 node2vec
-方法编码每个节点，再将需要编码的图中的每个节点的编码加和或取平均作为图的编码。</p>
-<h3 id="超节点super-node表示">2. 超节点（super-node）表示</h3>
-<p>新增一个超节点（super-node），该节点与需要表示的图中的每个节点都连有一条边，再进行一次
-node2vec 操作，用这个节点的编码来表示图的编码。</p>
-<h3 id="anonymous-walk-embedding">3. Anonymous Walk Embedding</h3>
-<p>继续使用 <strong>random walk approaches</strong>
-的想法，对于相同形式的 <strong>random
-walk</strong>，将它们归为同一类。例如某一个路径为<span
-class="math inline">\(A - B - A - C\)</span>，另一条路径为<span
-class="math inline">\(D-A-D-F\)</span>，两条路径的模式均为<span
-class="math inline">\(1-2-1-3\)</span>，则归为同一类，这就是一个
-<strong>Anonymous
-Walk</strong>。给定路径长作为超参，枚举所有路径模式及其出现频率，用最大似然法近似这些模式的分布，得到图的编码。</p>
-<p>这种想法的缺点在于枚举所有的路径非常耗时，当路径长增长时复杂度是指数增长的。因此另一种想法是对路径模式进行采样，随机产生
-<span class="math inline">\(m\)</span> 条 <strong>random walk</strong>
-并计算它们的路径模式，用以近似真实的路径模式分布。其中要使误差超过<span
-class="math inline">\(\varepsilon\)</span>的小于<span
-class="math inline">\(\delta\)</span>时需要的采样数 <span
-class="math inline">\(m\)</span> 满足： <span class="math display">\[
-\begin{array}{cc}
-m=\lceil\frac{2}{\varepsilon^2}(\log (2^\eta - 2)-\log(\delta)) \rceil\\
-其中\log以e为底，\eta 为给定路径长下路径模式的总种类数
-\end{array}
-\]</span></p>
-<p>除此之外，还有一种想法是直接将 Anonymous Walk 编码，使一个由多个
-Anonymous Walk 组成的序列变得可预测。具体内容参见文献：<a
-href="https://arxiv.org/pdf/1805.11921.pdf">Anonymous Walk Embeddings,
-ICML 2018</a>。</p>
-<h2 id="reference">Reference</h2>
-<p>[1] <a
-href="http://web.stanford.edu/class/cs224w/slides/07-noderepr.pdf">Stanford
-CS224W: Machine Learning with Graphs，Lecture 7 - Graph Representation
-Learning</a></p>
-]]></content>
-      <categories>
-        <category>学习</category>
-      </categories>
-      <tags>
-        <tag>GNN</tag>
-      </tags>
-  </entry>
-  <entry>
     <title>GNN（二）：图神经网络——深层编码器、GCN、GAT</title>
     <url>/2020/06/25/GNN/</url>
     <content><![CDATA[<p>浅层的node2vec的方法相当于一个单层的映射关系，存在许多局限性。例如不同的节点之间没有共享的参数，所有节点都有自己单独的embedding，导致模型的泛化能力不好，只能针对训练中给定的图的节点。因此需要更复杂有效的深层网络来应对实际场景中复杂多变的图网络。<a id="more"></a></p>
@@ -1511,6 +1323,239 @@ Diffusion Probabilistic Models</a></p>
       </tags>
   </entry>
   <entry>
+    <title>GNN（一）：图的表征学习</title>
+    <url>/2020/06/24/GNNrepr/</url>
+    <content><![CDATA[<p>机器学习的第一件事是需要将训练所用的未处理的数据（raw
+data）转化为具有一定格式的数据（structured
+data）。这个过程就是特征工程。例如对于自然语言处理而言，从文档到词向量嵌入（word
+embedding）的过程就是特征工程。在最初的机器学习中，很多特征工程是根据一些算法得出数据的特征，进而进行编码，但深度学习时代来临后，找寻特征这一过程也可以根据不同的任务让网络自己学习，例如
+word embedding
+所得到的上百维的向量，其实并不能指出每一个维度到底代表什么样的特征。在众多类型的数据中，图属于比较难表示的数据，因此入门图网络的第一课就是找寻图的表示学习方法。<a id="more"></a></p>
+<h2 id="一embedding-nodesnode2vec">一、Embedding Nodes（node2vec）</h2>
+<p>将节点通过一个编码器（encoder）映射为高维空间的向量来表示节点。映射后的向量需要满足的条件是：两个节点对应的向量能反应这两个节点在原图中的相似性。向量的相似性即两者的夹角，因此可以用点乘来的值来表示。如果需要表示的节点为<span
+class="math inline">\(u,v\)</span>，而经 encoder 得到的向量为<span
+class="math inline">\(\bf{z_v},\bf{z_u}\)</span>，则应满足： <span
+class="math display">\[
+similarity(u, v)\approx \bf{z_v}^T\bf{z_u}
+\]</span> 因此图中节点的表示学习的方法就可以用三个步骤表示：</p>
+<ol type="1">
+<li>定义一个 encoder，用来将节点的 one-hot 编码映射成固定维度的向量</li>
+<li>定义一个描述原图中两个节点相似性的函数 <span
+class="math inline">\(similarity\)</span></li>
+<li>优化 encoder 中的参数使得最后符合 <span
+class="math inline">\(similarity(u, v)\approx
+\bf{z_v}^T\bf{z_u}\)</span></li>
+</ol>
+<h3 id="定义-encoder">1. 定义 encoder</h3>
+<p>此部分比较简单，参考NLP中的 word embedding，只需要对 one-hot
+的编码进行矩阵乘即可。 <span class="math display">\[
+\begin{array}{cc}
+v \in \mathbb{I}^{|V|}\\
+\bf{Z} \in\mathbb{R}^{d\times |V|}
+\end{array}
+\]</span> 则对应节点 <span class="math inline">\(v\)</span>
+的嵌入向量为： <span class="math display">\[
+\mathbf{z_v} =\mathbf{Z} v,\ \mathbf{z_v}\in \mathbb{R}^d
+\]</span> 这样的方法其实相当于 embedding 矩阵 <span
+class="math inline">\(\mathbf{Z}\)</span>
+的每一列就对应一个节点的表示向量。维度 <span
+class="math inline">\(d\)</span> 是超参，在网络构建前确定。</p>
+<h3 id="定义-similarity">2. 定义 similarity</h3>
+<p>这部分是节点表示学习的关键，不同的 similarity
+定义的方法会带来不同的损失函数，节点最后的表示向量的适用任务也不一样。比较容易想到的有两种定义
+similarity 的方法：</p>
+<ol type="1">
+<li>两个点相互连接则定义为相似（Adjaceny-based）</li>
+<li>两个点的共同的邻居数量表示相似程度（Multi-hop similarity
+definations）</li>
+</ol>
+<p>但这两种显然都只是考虑了图的局部性质，有比较大的局限性。因此更常用的方法是
+Random Walk Approaches。</p>
+<h4 id="random-walk-approaches">Random Walk Approaches</h4>
+<h5 id="原理">原理</h5>
+<p>首先定义什么叫 <strong>random
+walk</strong>：在给定的图中选定一个点<span
+class="math inline">\(v\)</span>为起点，随机选择其邻接的点<span
+class="math inline">\(v_1\)</span>作为下一个点，再随机选择<span
+class="math inline">\(v_1\)</span>邻接的点<span
+class="math inline">\(v_2\)</span>作为下一个点，直到路径达到指定的长度。这样随机选出的一个点序列称为一个
+<strong>random walk</strong>。</p>
+<p>那么可以定义两点（<span
+class="math inline">\(u,v\)</span>）之间的相似度为这两点出现在同一条
+<strong>random walk</strong> 中的概率。</p>
+<p>使用这种定义方法的好处是同时考虑到了局部和全局的相似关系，因为根据不同的随机策略以及不同的路径长度可以均衡关注局部和关注全局的两种倾向。同时也不需要考虑所有的点对，只需要考虑在随机过程中每条<strong>random
+walk</strong> 中出现的点对即可。</p>
+<h5 id="生成策略">生成策略</h5>
+<p>最简单的生成策略是固定路径的长度，每次随机一个邻接的点作为下一步。但这样的方式过于简单，无法对其的
+focus 进行人工调整。因此在 node2vec
+的实现当中，使用的是有偏的选择道路的方式（Biased Walks）。</p>
+<p>两种经典的有偏的选择道路的方式即广度优先（BFS）和深度优先（DFS）。可以很明显地看出来，广度优先更聚焦于局部（Local）的节点连接状况（Micro-view
+of
+Neighborhood），深度优先则更关注全局（Global）的节点连接状况（Macro-view
+of
+Neighborhood）。与一个点连接的周围点根据其性质分为三种情况：前一个节点，距离起点一样的节点，距离起点更远的节点。</p>
+<p><img src="three_types_of_point.png" alt="types" style="zoom:50%;" /></p>
+<p>为了平衡这些关系，node2vec 在实现中定义了两个超参：</p>
+<ul>
+<li>p：return parameter，描述返回上一节点的概率</li>
+<li>q：in-out parameter，描述局部和全局的平衡</li>
+</ul>
+<p>以<span
+class="math inline">\(1、\frac{1}{q}、\frac{1}{p}\)</span>来表示前往更近的节点、前往更远的节点、返回前一节点的概率（还没有归一化）。例如对以下的图，<span
+class="math inline">\(s_1\)</span>为父节点，<span
+class="math inline">\(s_2\)</span>为距起点<span
+class="math inline">\(u\)</span>距离为2的点，<span
+class="math inline">\(s_3\)</span>和<span
+class="math inline">\(s_4\)</span>为距起点距离为3的点，当前点为<span
+class="math inline">\(w\)</span>，则前往<span
+class="math inline">\(s_2\)</span>的概率为<span
+class="math inline">\(\frac{1}{1+\frac{1}{p}+2\times
+\frac{1}{q}}\)</span>。</p>
+<p><img src="probability.png" alt="pro" style="zoom:50%;" /></p>
+<p>可以见到，越低的<span
+class="math inline">\(p\)</span>值，越倾向于关注局部，越低的<span
+class="math inline">\(q\)</span>值，越倾向于全局。给定不同的参数值，就可以对节点表示学习的关注点进行调节。</p>
+<h3 id="参数优化optimization">3. 参数优化（Optimization）</h3>
+<p>要使用梯度下降的方法进行训练，首先需要得到一个目标的损失函数。</p>
+<h4 id="损失函数loss">损失函数（Loss）</h4>
+<p>以 <span class="math inline">\(N_R(u)\)</span> 表示以方法 <span
+class="math inline">\(R\)</span> 得到的点 <span
+class="math inline">\(u\)</span> 的邻居点集合，这些邻居点被认为是和点
+<span class="math inline">\(u\)</span>
+有一定程度相似的（邻居点不一定是邻接的点）。例如方法 <span
+class="math inline">\(R\)</span> 为 random walk approaches 时，<span
+class="math inline">\(N_R(u)\)</span> 表示的就是在点 <span
+class="math inline">\(u\)</span> 出现的所有 random walk
+中的其他点的集合。注意这个集合中是允许出现重复点的，例如在 random walk
+approaches 中可能随机到往回走，这样某个点就可能多次被走到。</p>
+<p>则优化目标应该是最大化给定各个点，<span
+class="math inline">\(N_R\)</span>中的点是它们的邻居点的条件概率，同样用取
+log 的方式将乘法变成加法： <span class="math display">\[
+\max_z\sum_{u\in V}\log P(N_R(u)|u)
+\]</span> 用 softmax 方法进行点<span
+class="math inline">\(v\)</span>是点<span
+class="math inline">\(u\)</span>的邻居点的条件概率计算，则对应的损失函数为：
+<span class="math display">\[
+\begin{array}{cc}
+\mathcal L = \sum_{u\in V}\sum_{v \in N_R(u)}-\log P(v|\mathbf{z_u})\\
+其中\ P(v|\mathbf{z_u}) =
+\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}}
+\end{array}
+\]</span></p>
+<h4 id="负采样negative-sampling简化">负采样（Negative
+Sampling）简化</h4>
+<p>但是这么做对loss的计算复杂度是非常高的，在最外面的求和符号是<span
+class="math inline">\(O(|V|)\)</span>的循环次数，在计算 softmax
+的时候又需要循环 <span class="math inline">\(O(|V|)\)</span> 次，总共是
+<span class="math inline">\(O(|V|^2)\)</span>
+的复杂度。因此在实际使用中采取负采样（negative
+sampling）的方法进行近似（注意是效果上的近似，并不能靠数学公式推导得出）：
+<span class="math display">\[
+\begin{array}{cc}
+\log(\frac{\exp(\mathbf{z_u}^T\mathbf{z_v})}{\sum_{n\in
+V}\mathbf{z_u}^T\mathbf{z_n}})\approx \log(\sigma
+(\mathbf{z_u}^T\mathbf{z_v}))) - \sum_{i=1}^k \log
+(\sigma(\mathbf{z_u}^T\mathbf{z_{n_i}}))) \\
+其中\ \sigma\ 是 sigmoid 函数 f(x) =
+\frac{1}{1+e^{-x}}，n_i是在所有点的编号中进行随机选取的编号
+\end{array}
+\]</span>
+严格来说约等号的两侧是不同的函数，但优化后者一定程度上和优化前者得到的效果是一样的。负采样的思想是得到一个点的“真实得分”，再加上一些“噪声”作为最后的得分。这也就是为什么需要加用sigmoid函数，因此sigmoid函数可以把实数映射到<span
+class="math inline">\((0, 1]\)</span>区间，正好作为概率的代表。其中<span
+class="math inline">\(k\)</span>的取值越大，训练的结果泛化能力越强，一般情况下<span
+class="math inline">\(k\)</span>取 5～20。</p>
+<h2 id="二embedding-entire-graph">二、Embedding Entire Graph</h2>
+<p>有了对节点的表示学习之后，还可以进一步对一张图（整图或子图）进行编码。常见的也有三种方法。</p>
+<h3 id="加和平均">1. 加和/平均</h3>
+<p>首先使用 node2vec
+方法编码每个节点，再将需要编码的图中的每个节点的编码加和或取平均作为图的编码。</p>
+<h3 id="超节点super-node表示">2. 超节点（super-node）表示</h3>
+<p>新增一个超节点（super-node），该节点与需要表示的图中的每个节点都连有一条边，再进行一次
+node2vec 操作，用这个节点的编码来表示图的编码。</p>
+<h3 id="anonymous-walk-embedding">3. Anonymous Walk Embedding</h3>
+<p>继续使用 <strong>random walk approaches</strong>
+的想法，对于相同形式的 <strong>random
+walk</strong>，将它们归为同一类。例如某一个路径为<span
+class="math inline">\(A - B - A - C\)</span>，另一条路径为<span
+class="math inline">\(D-A-D-F\)</span>，两条路径的模式均为<span
+class="math inline">\(1-2-1-3\)</span>，则归为同一类，这就是一个
+<strong>Anonymous
+Walk</strong>。给定路径长作为超参，枚举所有路径模式及其出现频率，用最大似然法近似这些模式的分布，得到图的编码。</p>
+<p>这种想法的缺点在于枚举所有的路径非常耗时，当路径长增长时复杂度是指数增长的。因此另一种想法是对路径模式进行采样，随机产生
+<span class="math inline">\(m\)</span> 条 <strong>random walk</strong>
+并计算它们的路径模式，用以近似真实的路径模式分布。其中要使误差超过<span
+class="math inline">\(\varepsilon\)</span>的小于<span
+class="math inline">\(\delta\)</span>时需要的采样数 <span
+class="math inline">\(m\)</span> 满足： <span class="math display">\[
+\begin{array}{cc}
+m=\lceil\frac{2}{\varepsilon^2}(\log (2^\eta - 2)-\log(\delta)) \rceil\\
+其中\log以e为底，\eta 为给定路径长下路径模式的总种类数
+\end{array}
+\]</span></p>
+<p>除此之外，还有一种想法是直接将 Anonymous Walk 编码，使一个由多个
+Anonymous Walk 组成的序列变得可预测。具体内容参见文献：<a
+href="https://arxiv.org/pdf/1805.11921.pdf">Anonymous Walk Embeddings,
+ICML 2018</a>。</p>
+<h2 id="reference">Reference</h2>
+<p>[1] <a
+href="http://web.stanford.edu/class/cs224w/slides/07-noderepr.pdf">Stanford
+CS224W: Machine Learning with Graphs，Lecture 7 - Graph Representation
+Learning</a></p>
+]]></content>
+      <categories>
+        <category>学习</category>
+      </categories>
+      <tags>
+        <tag>GNN</tag>
+      </tags>
+  </entry>
+  <entry>
+    <title>Linux 非 Root 用户安装与使用 conda</title>
+    <url>/2021/01/18/Miniconda/</url>
+    <content><![CDATA[<p>​
+虽然python的包管理基本都可以用pip执行，但在很多服务器上用户没有root权限，因此不能直接<code>pip install</code>。此时可以选择用conda作为包管理器。由于Anaconda包含很多科学计算包，体积十分庞大且大多数我都不太用得到，因此我选择用conda的精简版——miniconda。miniconda只包含一个包管理器，不会预装科学计算包。<a id="more"></a></p>
+<h2 id="一miniconda安装脚本">一、Miniconda安装脚本</h2>
+<p>先从miniconda的<a
+href="https://docs.conda.io/en/latest/miniconda.html">官方网站</a>下载安装脚本。选择自己系统对应的版本。一般而言用python3的linux
+64-bit版，用最新的即可：<a
+href="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh">https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh</a>。</p>
+<p>下载完脚本名为<code>Miniconda3-latest-Linux-x86_64.sh</code>。</p>
+<h2 id="二以user身份安装">二、以user身份安装</h2>
+<p>用<code>chmod</code>给安装脚本赋予权限并运行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">chmod +x Miniconda3-latest-Linux-x86_64.sh  <span class="comment"># 赋予权限</span></span><br><span class="line">./Miniconda3-latest-Linux-x86_64.sh  <span class="comment"># 运行</span></span><br></pre></td></tr></table></figure>
+<p>之后按ENTER确认进入安装，会要求读一段用户协议不停按回车翻到底部，然后输入<strong>yes</strong>同意用户协议。</p>
+<p>此时会出现安装地址的确认，不出意外应该会装在用户的home下，这里的username就是用户名：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Miniconda3 will now be installed into this location:</span><br><span class="line">&#x2F;home&#x2F;username&#x2F;miniconda3</span><br><span class="line"></span><br><span class="line">  - Press ENTER to confirm the location</span><br><span class="line">  - Press CTRL-C to abort the installation</span><br><span class="line">  - Or specify a different location below</span><br><span class="line"></span><br><span class="line">[&#x2F;home&#x2F;username&#x2F;miniconda3] &gt;&gt;&gt;</span><br></pre></td></tr></table></figure>
+<p>按回车确认即可。</p>
+<p>安装完成后installer会提示是否要调用<code>conda init</code>将conda的激活写入<strong>.bashrc</strong>。如果输入yes的话启动终端会自动激活conda（即出现base环境提示）。否则每次都需要手动激活。一般输入<strong>yes</strong>确认。</p>
+<p>等待安装完成，重启终端即可使用conda。</p>
+<p>conda下载过慢需要换源可以参考<a
+href="https://zhuanlan.zhihu.com/p/87123943">https://zhuanlan.zhihu.com/p/87123943</a></p>
+<h2 id="三conda常用指令">三、conda常用指令</h2>
+<p>创建环境</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda create -n name python=3.8  <span class="comment"># 创建python3.8，名为name的环境</span></span><br></pre></td></tr></table></figure>
+<p>删除环境</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda remove -n name --all  <span class="comment"># 删除名为name的环境，不可复原</span></span><br></pre></td></tr></table></figure>
+<p>查看环境列表</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda env list</span><br></pre></td></tr></table></figure>
+<p>激活环境</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda activate name</span><br></pre></td></tr></table></figure>
+<p>退出环境</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">conda deactivate</span><br></pre></td></tr></table></figure>
+<p>清理无用包</p>
+<p>conda比较麻烦的一点就是会一直把各种没用的安装包存下来，导致<code>/home/username/miniconda3</code>这个文件夹巨大无比，可以用以下三条指令清理：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda clean -p  <span class="comment"># 删除没用的包</span></span><br><span class="line">conda clean -t  <span class="comment"># tar打包</span></span><br><span class="line">conda clean -y -a  <span class="comment"># 删除所有安装包和cache</span></span><br></pre></td></tr></table></figure>
+]]></content>
+      <categories>
+        <category>Linux</category>
+      </categories>
+      <tags>
+        <tag>non-root</tag>
+        <tag>conda</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Minecraft Java版服务器搭建（Linux）与客户端连接</title>
     <url>/2020/09/09/Minecraft/</url>
     <content><![CDATA[<p>因为自己的服务器不小心装了32位系统，导致Minecraft基岩版的服务器没有办法运行，因此就尝试换用
@@ -1775,48 +1820,93 @@ local network 中搜索到服务端，如果要通过ip连接的话，需要用 
       </tags>
   </entry>
   <entry>
-    <title>Linux 非 Root 用户安装与使用 conda</title>
-    <url>/2021/01/18/Miniconda/</url>
+    <title>Linux Network Namespace(netns)使用——以PPPoE实验为例</title>
+    <url>/2020/09/14/Netns/</url>
     <content><![CDATA[<p>​
-虽然python的包管理基本都可以用pip执行，但在很多服务器上用户没有root权限，因此不能直接<code>pip install</code>。此时可以选择用conda作为包管理器。由于Anaconda包含很多科学计算包，体积十分庞大且大多数我都不太用得到，因此我选择用conda的精简版——miniconda。miniconda只包含一个包管理器，不会预装科学计算包。<a id="more"></a></p>
-<h2 id="一miniconda安装脚本">一、Miniconda安装脚本</h2>
-<p>先从miniconda的<a
-href="https://docs.conda.io/en/latest/miniconda.html">官方网站</a>下载安装脚本。选择自己系统对应的版本。一般而言用python3的linux
-64-bit版，用最新的即可：<a
-href="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh">https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh</a>。</p>
-<p>下载完脚本名为<code>Miniconda3-latest-Linux-x86_64.sh</code>。</p>
-<h2 id="二以user身份安装">二、以user身份安装</h2>
-<p>用<code>chmod</code>给安装脚本赋予权限并运行：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">chmod +x Miniconda3-latest-Linux-x86_64.sh  <span class="comment"># 赋予权限</span></span><br><span class="line">./Miniconda3-latest-Linux-x86_64.sh  <span class="comment"># 运行</span></span><br></pre></td></tr></table></figure>
-<p>之后按ENTER确认进入安装，会要求读一段用户协议不停按回车翻到底部，然后输入<strong>yes</strong>同意用户协议。</p>
-<p>此时会出现安装地址的确认，不出意外应该会装在用户的home下，这里的username就是用户名：</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">Miniconda3 will now be installed into this location:</span><br><span class="line">&#x2F;home&#x2F;username&#x2F;miniconda3</span><br><span class="line"></span><br><span class="line">  - Press ENTER to confirm the location</span><br><span class="line">  - Press CTRL-C to abort the installation</span><br><span class="line">  - Or specify a different location below</span><br><span class="line"></span><br><span class="line">[&#x2F;home&#x2F;username&#x2F;miniconda3] &gt;&gt;&gt;</span><br></pre></td></tr></table></figure>
-<p>按回车确认即可。</p>
-<p>安装完成后installer会提示是否要调用<code>conda init</code>将conda的激活写入<strong>.bashrc</strong>。如果输入yes的话启动终端会自动激活conda（即出现base环境提示）。否则每次都需要手动激活。一般输入<strong>yes</strong>确认。</p>
-<p>等待安装完成，重启终端即可使用conda。</p>
-<p>conda下载过慢需要换源可以参考<a
-href="https://zhuanlan.zhihu.com/p/87123943">https://zhuanlan.zhihu.com/p/87123943</a></p>
-<h2 id="三conda常用指令">三、conda常用指令</h2>
-<p>创建环境</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda create -n name python=3.8  <span class="comment"># 创建python3.8，名为name的环境</span></span><br></pre></td></tr></table></figure>
-<p>删除环境</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda remove -n name --all  <span class="comment"># 删除名为name的环境，不可复原</span></span><br></pre></td></tr></table></figure>
-<p>查看环境列表</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda env list</span><br></pre></td></tr></table></figure>
-<p>激活环境</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda activate name</span><br></pre></td></tr></table></figure>
-<p>退出环境</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">conda deactivate</span><br></pre></td></tr></table></figure>
-<p>清理无用包</p>
-<p>conda比较麻烦的一点就是会一直把各种没用的安装包存下来，导致<code>/home/username/miniconda3</code>这个文件夹巨大无比，可以用以下三条指令清理：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">conda clean -p  <span class="comment"># 删除没用的包</span></span><br><span class="line">conda clean -t  <span class="comment"># tar打包</span></span><br><span class="line">conda clean -y -a  <span class="comment"># 删除所有安装包和cache</span></span><br></pre></td></tr></table></figure>
+netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究
+PPPoE 网络协议的实验，需要有一个 server 和一个
+client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和
+Windows 本身不共用网络层，因此可以一个当 server，一个当
+client，但我只有一台 Linux 电脑，所以就需要用 netns
+建立隔离的网络栈来模拟两台电脑。<a id="more"></a></p>
+<h2 id="一netns-使用">一、netns 使用</h2>
+<p>netns 的使用是需要 sudo 权限的，且是 ip
+系列的指令，因此相关指令的前缀都为 <code>sudo ip netns</code>。</p>
+<p>增加一个网络空间的指令为<code>add</code>，后接网络名称，在这里创建两个网络空间，一个为<code>net0</code>，一个为<code>net1</code>，分别用于
+PPPoE 的 server 和 client
+搭建（之后如果想删除的话只需要用<code>del</code>指令即可）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns add net0</span><br><span class="line">sudo ip netns add net1</span><br></pre></td></tr></table></figure>
+<p>使用<code>ls</code>或<code>show</code>指令查看网络空间，确认两个网络空间已经建立：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns ls</span><br><span class="line"><span class="comment"># 输出应为：</span></span><br><span class="line"><span class="comment"># net0</span></span><br><span class="line"><span class="comment"># net1</span></span><br></pre></td></tr></table></figure>
+<p>如果想在某个特定的网络空间下运行指令，只需要给前缀<code>sudo ip netns exec name</code>即可，想在<code>net0</code>
+空间中运行 <code>ip addr</code> 指令，只需要：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip addr</span><br></pre></td></tr></table></figure>
+<p>新建立的网络命名空间的 loopback 接口是默认关闭的（在
+<code>ip addr</code>
+中可以看到接口<code>lo</code>的状态是<strong>DOWN</strong>），如果需要打开，使用：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ip link set xxx up 是打开接口 xxx</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> lo up</span><br></pre></td></tr></table></figure>
+<p>此时两个网络空间之间无法互相通信，需要有一根虚拟网线连接两个网络空间。这根虚拟网线就是
+<strong>veth</strong> (virtual ethernet)。veth
+总是成对出现的（相当于网线的两头），因此创建时是两个同时创建。使用<code>ip link</code>系列的<code>add</code>指令进行创建（同样，要删除只需要<code>ip link del dev xxx</code>）：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 默认名字为 veth0 和 veth0</span></span><br><span class="line">sudo ip link add <span class="built_in">type</span> veth</span><br><span class="line"><span class="comment"># 或者也可以用自定义名字的方式：</span></span><br><span class="line"><span class="comment"># sudo ip link add name veth0 type veth peer name veth1</span></span><br></pre></td></tr></table></figure>
+<p>此时用<code>ip addr</code>指令应该可以看到这两个接口。接下来需要将两个接口分别绑定到两个网络空间：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip link <span class="built_in">set</span> veth0 netns net0</span><br><span class="line">sudo ip link <span class="built_in">set</span> veth1 netns net1</span><br></pre></td></tr></table></figure>
+<p>这样虚拟网线的两端就绑定到两个网络空间了。但是此时两个网络之间还是不能通信，因为veth端口还没有打开，且还没有分配IP地址，因此要打开接口并分配地址：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 打开接口</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> veth0 up</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip link <span class="built_in">set</span> veth1 up</span><br><span class="line"><span class="comment"># 分配 IP 地址，这里以 192.168.0.2/24 和 192.168.0.3/24 为例(/24是子网掩码)</span></span><br><span class="line"><span class="comment"># ip a 是 ip addr 的缩写</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip a add 192.168.0.2/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip a add 192.168.0.3/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>分配好之后还需要手动配置路由，否则无法互相找到，使用<code>ip r</code>指令(是<code>ip route</code>的缩写)</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 表示所有192.168.0.x的地址都通过veth0和veth1寻找</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip r add 192.168.0.0/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip r add 192.168.0.0/24 dev veth1</span><br></pre></td></tr></table></figure>
+<p>这样两个子网就可以互相ping通了，即可以互相通信了：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ping 192.168.0.3 <span class="comment"># 从net0 ping net1</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ping 192.168.0.2 <span class="comment"># 从net1 ping net0</span></span><br></pre></td></tr></table></figure>
+<p>至此两个互相能通信的子网已经建立。</p>
+<h2 id="二pppoe">二、PPPoE</h2>
+<h3 id="server-搭建">1. server 搭建</h3>
+<p>安装 PPPoE server：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoe</span><br></pre></td></tr></table></figure>
+<p>通过<code>vim /etc/ppp/options</code> 编辑 PPPoE 的配置文件并删除
+<code>#+chap</code> 行首的注释符 <code>#</code>。</p>
+<p>通过 <code>vim /etc/ppp/pppoe-server-options</code> 进行 server
+的配置，写入：</p>
+<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">require-chap</span><br><span class="line">lcp-echo-interval 60</span><br><span class="line">lcp-echo-failure 5</span><br><span class="line">logfile &#x2F;var&#x2F;log&#x2F;pppd.log</span><br></pre></td></tr></table></figure>
+<p>通过 <code>vim /etc/ppp/chap-secrets</code> 编辑 server
+端认证的帐号密码，在最后一行加入：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">test</span> * 123456 *  <span class="comment"># client/server/secret/IP address</span></span><br></pre></td></tr></table></figure>
+<p>这里注意，因为本实验中 server 和 client
+其实是同一台机器模拟的两个网络空间，即配置文件是共用的，因此在配置客户端的时候可能会把服务端的配置覆盖，需要配置完客户端后重新回来把被覆盖的部分加上。</p>
+<p>之后启动server即可（注意在 net0 空间中启动）</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -I 后跟的是使用的interface，选择和 net1 连接的 veth0，-L 指定server在子网中的地址，-R指定接入client的地址分配的起始点，-N指定允许的最多client</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 sudo pppoe-server -I veth0 -L 10.0.0.1 -R 10.0.0.2 -N</span><br><span class="line">20</span><br></pre></td></tr></table></figure>
+<h3 id="client-搭建">2. client 搭建</h3>
+<p>安装pppoeconf：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoeconf</span><br></pre></td></tr></table></figure>
+<p>在子网<code>net1</code>中运行pppoeconf，并且指定使用<code>veth1</code>接口：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 pppoeconf veth1</span><br></pre></td></tr></table></figure>
+<p>按顺序：popular
+options，选否；用户名，删掉默认的username，输入test；密码，输入123456；User
+peer DNS，选是；Limited MSS Problem，选是；Start connection at boot
+time，否；Establish a Connection，否。</p>
+<p>此时pppoeconf应该覆盖了原先server端的<code>chap-secrets</code>，需要把<code>test * 123456 *</code>
+重新加回配置文件。</p>
+<p>更改结束后如果需要开启client连接，只需要在net1网络空间下运行<code>sudo pon dsl-provider</code>：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>查看状态可以使用<code>sudo plog</code>，关闭连接可以用<code>sudo poff</code></p>
+<h2 id="三使用-tcpdump-抓包">三、使用 tcpdump 抓包</h2>
+<p>我们需要在运行<code>pon dsl-provider</code>之前开启抓包，这样就能得到客户端进行连接时和server进行的交互信息。在客户端抓包还是在服务端抓包是一样的，只是发送的和接收的相反而已。在客户端抓包：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -i 为选择监听的 interface，-v 为 verbose（显示详细信息），-n 为不翻译地址（即不用dns翻译，可以加快速度），-w 为设置数据存储路径（存为pcap文件，可以用wireshark进行分析）</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 tcpdump -i veth1 -vn -w packet.cap</span><br></pre></td></tr></table></figure>
+<p>此时已经tcpdump已经开始监听 net1 的 veth1
+了，之后所有通过这个接口发送的包都会被存下来，此时再开始连接过程：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
+<p>连接完成后再关闭监听，此时所有连接过程的包都已经被保存到<strong>packet.cap</strong>文件中了，使用<strong>wireshark</strong>打开即可得到PPPoE各阶段的报文：</p>
+<figure>
+<img src="all.png" alt="all" />
+<figcaption aria-hidden="true">all</figcaption>
+</figure>
 ]]></content>
       <categories>
         <category>Linux</category>
       </categories>
       <tags>
-        <tag>non-root</tag>
-        <tag>conda</tag>
+        <tag>netns</tag>
+        <tag>PPPoE</tag>
+        <tag>tcpdump</tag>
       </tags>
   </entry>
   <entry>
@@ -2041,96 +2131,6 @@ Adjoint Method of Neural ODE</a></p>
       </categories>
       <tags>
         <tag>Neural ODE</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>Linux Network Namespace(netns)使用——以PPPoE实验为例</title>
-    <url>/2020/09/14/Netns/</url>
-    <content><![CDATA[<p>​
-netns是用来建立隔离的网络协议栈的，学习netns是因为计算机网络原理课程作业中有一个研究
-PPPoE 网络协议的实验，需要有一个 server 和一个
-client，通过对两者通信的抓包来理解协议内容和过程。Windows 有 wsl2，和
-Windows 本身不共用网络层，因此可以一个当 server，一个当
-client，但我只有一台 Linux 电脑，所以就需要用 netns
-建立隔离的网络栈来模拟两台电脑。<a id="more"></a></p>
-<h2 id="一netns-使用">一、netns 使用</h2>
-<p>netns 的使用是需要 sudo 权限的，且是 ip
-系列的指令，因此相关指令的前缀都为 <code>sudo ip netns</code>。</p>
-<p>增加一个网络空间的指令为<code>add</code>，后接网络名称，在这里创建两个网络空间，一个为<code>net0</code>，一个为<code>net1</code>，分别用于
-PPPoE 的 server 和 client
-搭建（之后如果想删除的话只需要用<code>del</code>指令即可）：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns add net0</span><br><span class="line">sudo ip netns add net1</span><br></pre></td></tr></table></figure>
-<p>使用<code>ls</code>或<code>show</code>指令查看网络空间，确认两个网络空间已经建立：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns ls</span><br><span class="line"><span class="comment"># 输出应为：</span></span><br><span class="line"><span class="comment"># net0</span></span><br><span class="line"><span class="comment"># net1</span></span><br></pre></td></tr></table></figure>
-<p>如果想在某个特定的网络空间下运行指令，只需要给前缀<code>sudo ip netns exec name</code>即可，想在<code>net0</code>
-空间中运行 <code>ip addr</code> 指令，只需要：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip addr</span><br></pre></td></tr></table></figure>
-<p>新建立的网络命名空间的 loopback 接口是默认关闭的（在
-<code>ip addr</code>
-中可以看到接口<code>lo</code>的状态是<strong>DOWN</strong>），如果需要打开，使用：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># ip link set xxx up 是打开接口 xxx</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> lo up</span><br></pre></td></tr></table></figure>
-<p>此时两个网络空间之间无法互相通信，需要有一根虚拟网线连接两个网络空间。这根虚拟网线就是
-<strong>veth</strong> (virtual ethernet)。veth
-总是成对出现的（相当于网线的两头），因此创建时是两个同时创建。使用<code>ip link</code>系列的<code>add</code>指令进行创建（同样，要删除只需要<code>ip link del dev xxx</code>）：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 默认名字为 veth0 和 veth0</span></span><br><span class="line">sudo ip link add <span class="built_in">type</span> veth</span><br><span class="line"><span class="comment"># 或者也可以用自定义名字的方式：</span></span><br><span class="line"><span class="comment"># sudo ip link add name veth0 type veth peer name veth1</span></span><br></pre></td></tr></table></figure>
-<p>此时用<code>ip addr</code>指令应该可以看到这两个接口。接下来需要将两个接口分别绑定到两个网络空间：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip link <span class="built_in">set</span> veth0 netns net0</span><br><span class="line">sudo ip link <span class="built_in">set</span> veth1 netns net1</span><br></pre></td></tr></table></figure>
-<p>这样虚拟网线的两端就绑定到两个网络空间了。但是此时两个网络之间还是不能通信，因为veth端口还没有打开，且还没有分配IP地址，因此要打开接口并分配地址：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 打开接口</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip link <span class="built_in">set</span> veth0 up</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip link <span class="built_in">set</span> veth1 up</span><br><span class="line"><span class="comment"># 分配 IP 地址，这里以 192.168.0.2/24 和 192.168.0.3/24 为例(/24是子网掩码)</span></span><br><span class="line"><span class="comment"># ip a 是 ip addr 的缩写</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip a add 192.168.0.2/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip a add 192.168.0.3/24 dev veth1</span><br></pre></td></tr></table></figure>
-<p>分配好之后还需要手动配置路由，否则无法互相找到，使用<code>ip r</code>指令(是<code>ip route</code>的缩写)</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 表示所有192.168.0.x的地址都通过veth0和veth1寻找</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ip r add 192.168.0.0/24 dev veth0</span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ip r add 192.168.0.0/24 dev veth1</span><br></pre></td></tr></table></figure>
-<p>这样两个子网就可以互相ping通了，即可以互相通信了：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net0 ping 192.168.0.3 <span class="comment"># 从net0 ping net1</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 ping 192.168.0.2 <span class="comment"># 从net1 ping net0</span></span><br></pre></td></tr></table></figure>
-<p>至此两个互相能通信的子网已经建立。</p>
-<h2 id="二pppoe">二、PPPoE</h2>
-<h3 id="server-搭建">1. server 搭建</h3>
-<p>安装 PPPoE server：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoe</span><br></pre></td></tr></table></figure>
-<p>通过<code>vim /etc/ppp/options</code> 编辑 PPPoE 的配置文件并删除
-<code>#+chap</code> 行首的注释符 <code>#</code>。</p>
-<p>通过 <code>vim /etc/ppp/pppoe-server-options</code> 进行 server
-的配置，写入：</p>
-<figure class="highlight plain"><table><tr><td class="code"><pre><span class="line">require-chap</span><br><span class="line">lcp-echo-interval 60</span><br><span class="line">lcp-echo-failure 5</span><br><span class="line">logfile &#x2F;var&#x2F;log&#x2F;pppd.log</span><br></pre></td></tr></table></figure>
-<p>通过 <code>vim /etc/ppp/chap-secrets</code> 编辑 server
-端认证的帐号密码，在最后一行加入：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">test</span> * 123456 *  <span class="comment"># client/server/secret/IP address</span></span><br></pre></td></tr></table></figure>
-<p>这里注意，因为本实验中 server 和 client
-其实是同一台机器模拟的两个网络空间，即配置文件是共用的，因此在配置客户端的时候可能会把服务端的配置覆盖，需要配置完客户端后重新回来把被覆盖的部分加上。</p>
-<p>之后启动server即可（注意在 net0 空间中启动）</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -I 后跟的是使用的interface，选择和 net1 连接的 veth0，-L 指定server在子网中的地址，-R指定接入client的地址分配的起始点，-N指定允许的最多client</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net0 sudo pppoe-server -I veth0 -L 10.0.0.1 -R 10.0.0.2 -N</span><br><span class="line">20</span><br></pre></td></tr></table></figure>
-<h3 id="client-搭建">2. client 搭建</h3>
-<p>安装pppoeconf：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo apt install pppoeconf</span><br></pre></td></tr></table></figure>
-<p>在子网<code>net1</code>中运行pppoeconf，并且指定使用<code>veth1</code>接口：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 pppoeconf veth1</span><br></pre></td></tr></table></figure>
-<p>按顺序：popular
-options，选否；用户名，删掉默认的username，输入test；密码，输入123456；User
-peer DNS，选是；Limited MSS Problem，选是；Start connection at boot
-time，否；Establish a Connection，否。</p>
-<p>此时pppoeconf应该覆盖了原先server端的<code>chap-secrets</code>，需要把<code>test * 123456 *</code>
-重新加回配置文件。</p>
-<p>更改结束后如果需要开启client连接，只需要在net1网络空间下运行<code>sudo pon dsl-provider</code>：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
-<p>查看状态可以使用<code>sudo plog</code>，关闭连接可以用<code>sudo poff</code></p>
-<h2 id="三使用-tcpdump-抓包">三、使用 tcpdump 抓包</h2>
-<p>我们需要在运行<code>pon dsl-provider</code>之前开启抓包，这样就能得到客户端进行连接时和server进行的交互信息。在客户端抓包还是在服务端抓包是一样的，只是发送的和接收的相反而已。在客户端抓包：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment"># -i 为选择监听的 interface，-v 为 verbose（显示详细信息），-n 为不翻译地址（即不用dns翻译，可以加快速度），-w 为设置数据存储路径（存为pcap文件，可以用wireshark进行分析）</span></span><br><span class="line">sudo ip netns <span class="built_in">exec</span> net1 tcpdump -i veth1 -vn -w packet.cap</span><br></pre></td></tr></table></figure>
-<p>此时已经tcpdump已经开始监听 net1 的 veth1
-了，之后所有通过这个接口发送的包都会被存下来，此时再开始连接过程：</p>
-<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">sudo ip netns <span class="built_in">exec</span> net1 sudo pon dsl-provider</span><br></pre></td></tr></table></figure>
-<p>连接完成后再关闭监听，此时所有连接过程的包都已经被保存到<strong>packet.cap</strong>文件中了，使用<strong>wireshark</strong>打开即可得到PPPoE各阶段的报文：</p>
-<figure>
-<img src="all.png" alt="all" />
-<figcaption aria-hidden="true">all</figcaption>
-</figure>
-]]></content>
-      <categories>
-        <category>Linux</category>
-      </categories>
-      <tags>
-        <tag>netns</tag>
-        <tag>PPPoE</tag>
-        <tag>tcpdump</tag>
       </tags>
   </entry>
   <entry>
